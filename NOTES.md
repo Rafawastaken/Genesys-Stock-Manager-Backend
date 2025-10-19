@@ -1,0 +1,3 @@
+# Logging
+
+<diretorio>.<ficheiro>
