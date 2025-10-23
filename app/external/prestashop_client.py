@@ -66,13 +66,14 @@ class PrestashopClient:
 
         try:
             data = resp.json() if resp.content else {}
+            user = data.get('user') or {}
         except Exception:
             data = {}
 
-        # Normalização mínima (ajusta aos campos reais devolvidos pelo módulo)
+        
         return {
             "id": data.get("id") or data.get("user_id") or email,
             "email": data.get("email", email),
-            "name": data.get("name"),
-            "role": data.get("role", "user"),
+            "name": user.get("name") or "Convidado",
+            "role": user.get("role", "user") or "Guest",
         }

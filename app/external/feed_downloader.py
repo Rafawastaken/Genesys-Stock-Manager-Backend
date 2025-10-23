@@ -265,11 +265,41 @@ class FeedDownloader:
     def _preview_csv(self, raw_sample: bytes, *, delimiter: str = ",", max_rows: int = 20) -> List[dict]:
         text = self._decode_best(raw_sample, ct="text/csv; charset=utf-8")
         sio = io.StringIO(text)
-        # DictReader vai usar a primeira linha como cabeçalho
-        reader = csv.DictReader(sio, delimiter=(delimiter or ","))
+
+        # restkey captura colunas a mais, evitando chave None
+        reader = csv.DictReader(
+            sio,
+            delimiter=(delimiter or ","),
+            restkey="_extra",
+            restval="",           # campos em falta ficam vazios
+        )
+
         out: List[dict] = []
         for i, row in enumerate(reader, 1):
-            out.append({k: (v if v is not None else "") for k, v in row.items()})
+            clean: dict[str, Any] = {}
+
+            for k, v in row.items():
+                # ignora chaves None (não deverá acontecer com restkey, mas por segurança)
+                if k is None:
+                    continue
+
+                # força chave para string; substitui vazias por um nome sintético
+                key = str(k).strip() or f"col_{len(clean) + 1}"
+
+                # se vier uma lista (colunas extra via restkey), junta numa string
+                if isinstance(v, list):
+                    v = ",".join("" if x is None else str(x) for x in v)
+
+                # normaliza valores None para string vazia (ou mantém como está se preferires)
+                clean[key] = "" if v is None else v
+
+            out.append(clean)
             if i >= max_rows:
                 break
+
+            # opcional: se a linha toda vier vazia, podes saltar:
+            # if not any(str(val).strip() for val in clean.values()):
+            #     continue
+
         return out
+

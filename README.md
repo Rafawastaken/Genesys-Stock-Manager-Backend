@@ -5,6 +5,8 @@ Backend
 │  ├─ api
 │  │  └─ v1
 │  │     ├─ auth.py
+│  │     ├─ feeds.py
+│  │     ├─ mappers.py
 │  │     ├─ runs.py
 │  │     ├─ suppliers.py
 │  │     ├─ system.py
@@ -59,6 +61,13 @@ Backend
 │  │  ├─ commands
 │  │  │  ├─ auth
 │  │  │  │  └─ login.py
+│  │  │  ├─ feeds
+│  │  │  │  ├─ delete_supplier_feed.py
+│  │  │  │  ├─ test_feed.py
+│  │  │  │  └─ upsert_supplier_feed.py
+│  │  │  ├─ mappers
+│  │  │  │  ├─ put_mapper.py
+│  │  │  │  └─ validate_mapper.py
 │  │  │  ├─ runs
 │  │  │  │  └─ ingest_supplier.py
 │  │  │  └─ suppliers
@@ -66,6 +75,10 @@ Backend
 │  │  │     ├─ delete_supplier.py
 │  │  │     └─ update_supplier.py
 │  │  └─ queries
+│  │     ├─ feeds
+│  │     │  └─ get_by_supplier.py
+│  │     ├─ mappers
+│  │     │  └─ get_mapper.py
 │  │     └─ suppliers
 │  │        └─ list_suppliers.py
 │  ├─ shared

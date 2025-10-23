@@ -20,9 +20,10 @@ app = FastAPI(title="Genesys API Backend", version="2.0.0")
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(
     CORSMiddleware,
+    allow_origin_regex=r".*",   # aceita qualquer origem
     allow_methods=["*"],
     allow_headers=["*"],
-    allow_credentials=True,
+    allow_credentials=True,     # ecoa o Origin em vez de '*'
     max_age=86400,
 )
 

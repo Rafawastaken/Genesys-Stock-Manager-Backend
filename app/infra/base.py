@@ -10,4 +10,4 @@ from app.core.config import settings
 Base = declarative_base()
 
 def utcnow() -> datetime:
-    return datetime.now(settings.TIMEZONE or timezone.utc)
+    return datetime.utcnow()
