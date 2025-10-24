@@ -2,21 +2,25 @@
 from __future__ import annotations
 import json
 from app.infra.uow import UoW
+from app.repositories.mapper_repo import MapperRepository
 from app.schemas.mappers import FeedMapperUpsert, FeedMapperOut
 
 def handle(uow: UoW, *, feed_id: int, payload: FeedMapperUpsert) -> FeedMapperOut:
-    def mutate(e, creating: bool):
-        e.profile_json = json.dumps(payload.profile or {}, ensure_ascii=False)
-        if payload.bump_version:
-            # no create: começa em 1; senão incrementa
-            e.version = (e.version or 0) + (0 if creating else 1) if not creating else 1
+    repo = MapperRepository(uow.db)
+    # repo espera um dict profile, não uma função
+    entity = repo.upsert_profile(
+        feed_id=feed_id,
+        profile=payload.profile,
+        bump_version=payload.bump_version,
+    )
+    # manter a semântica "commands fazem commit"
+    uow.commit()
 
-    e = uow.mappers.upsert(feed_id, mutate)
-    try:
-        profile = json.loads(e.profile_json) if e.profile_json else {}
-    except Exception:
-        profile = {}
     return FeedMapperOut(
-        id=e.id, feed_id=e.feed_id, profile=profile, version=e.version,
-        created_at=e.created_at, updated_at=e.updated_at
+        id=entity.id,
+        feed_id=entity.feed_id,
+        profile=json.loads(entity.profile_json) if entity.profile_json else {},
+        version=entity.version or 1,
+        created_at=entity.created_at,
+        updated_at=entity.updated_at,
     )

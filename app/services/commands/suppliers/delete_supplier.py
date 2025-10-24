@@ -1,20 +1,21 @@
-from __future__ import annotations
-from fastapi import HTTPException, status
-
+# app/services/commands/suppliers/delete_supplier.py
 from app.infra.uow import UoW
 from app.repositories.supplier_repo import SupplierRepository
 
 def handle(uow: UoW, *, supplier_id: int) -> None:
+    """
+    Apaga um fornecedor e todas as dependências (feeds, mappers, runs, items)
+    através do CASCADE configurado nas FKs.
+    """
     repo = SupplierRepository(uow.db)
-    if hasattr(repo, "delete"):
-        repo.delete(supplier_id)
+
+    supplier = repo.get(supplier_id)
+    if not supplier:
+        raise ValueError("SUPPLIER_NOT_FOUND")
+
+    try:
+        repo.delete(supplier)   # usa o delete() do base repo
         uow.commit()
-        return
-
-    # fallback manual
-    entity = repo.get(supplier_id) if hasattr(repo, "get") else None
-    if entity is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Supplier not found")
-
-    uow.db.delete(entity)
-    uow.commit()
+    except Exception:
+        uow.rollback()
+        raise
