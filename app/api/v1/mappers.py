@@ -38,7 +38,7 @@ def get_mapper_by_supplier(supplier_id: int, uow: UoW = Depends(get_uow), _=Depe
 # -------------------------------
 @router.post("/feed/{feed_id}/validate", response_model=MapperValidateOut, dependencies=[Depends(require_access_token)])
 def validate_mapper(feed_id: int, payload: MapperValidateIn, uow: UoW = Depends(get_uow)):
-    return c_validate(uow, feed_id=feed_id, payload=payload)
+    return c_validate(uow, id_feed=feed_id, payload=payload)
 
 # -------------------------------
 # GET /mappers/ops

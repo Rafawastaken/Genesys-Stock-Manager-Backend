@@ -54,7 +54,7 @@ def _mapper_to_out(m) -> FeedMapperOut | None:
         return None
     return FeedMapperOut(
         id=m.id,
-        feed_id=m.feed_id,
+        feed_id=m.id_feed,
         profile=json.loads(m.profile_json) if getattr(m, "profile_json", None) else {},
         version=m.version or 1,
         created_at=m.created_at,
