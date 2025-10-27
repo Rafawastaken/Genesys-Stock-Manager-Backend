@@ -1,7 +1,10 @@
 # app/api/v1/mappers.py
 from __future__ import annotations
+
 import logging
+
 from fastapi import APIRouter, Depends, HTTPException
+
 from app.core.deps import get_uow, require_access_token
 from app.infra.uow import UoW
 from app.schemas.mappers import MapperValidateIn, MapperValidateOut

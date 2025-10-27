@@ -7,12 +7,15 @@ from starlette.middleware.cors import CORSMiddleware
 from app.core.logging import setup_logging
 from app.core.middleware import RequestContextMiddleware
 
+# Routes
 from app.api.v1.system import router as system_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.suppliers import router as suppliers_router
 from app.api.v1.runs import router as runs_router
 from app.api.v1.feeds import router as feeds_router
 from app.api.v1.mappers import router as mappers_router
+from app.api.v1.products import router as products_router
+
 
 setup_logging()
 
@@ -40,3 +43,4 @@ app.include_router(suppliers_router, prefix="/api/v1")
 app.include_router(feeds_router, prefix="/api/v1")
 app.include_router(mappers_router, prefix="/api/v1")
 app.include_router(runs_router, prefix="/api/v1")
+app.include_router(products_router, prefix="/api/v1")
