@@ -6,7 +6,7 @@ from app.schemas.feeds import SupplierFeedCreate, SupplierFeedUpdate, SupplierFe
 from app.repositories.supplier_feed_repo import SupplierFeedRepository
 from app.services.queries.feeds.get_by_supplier import _to_out
 
-def handle(uow: UoW, *, supplier_id: int, data: SupplierFeedCreate | SupplierFeedUpdate) -> SupplierFeedOut:
+def handle(uow: UoW, *, id_supplier: int, data: SupplierFeedCreate | SupplierFeedUpdate) -> SupplierFeedOut:
     def mutate(e):
         for f in ("kind", "format", "url", "active", "csv_delimiter"):
             v = getattr(data, f, None)
@@ -24,6 +24,6 @@ def handle(uow: UoW, *, supplier_id: int, data: SupplierFeedCreate | SupplierFee
             e.auth_json = None if data.auth is None else json.dumps(data.auth, ensure_ascii=False)
 
     repo = SupplierFeedRepository(uow.db)
-    e = repo.upsert_for_supplier(supplier_id, mutate)
+    e = repo.upsert_for_supplier(id_supplier, mutate)
     uow.commit()
     return _to_out(e)

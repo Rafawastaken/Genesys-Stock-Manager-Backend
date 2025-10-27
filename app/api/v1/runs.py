@@ -8,9 +8,9 @@ from app.services.commands.runs import ingest_supplier as c_ingest
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
-@router.post("/supplier/{supplier_id}/ingest")
-async def ingest_supplier(supplier_id: int,
+@router.post("/supplier/{id_supplier}/ingest")
+async def ingest_supplier(id_supplier: int,
                           limit: int | None = Query(default=None, ge=1, le=1_000_000),
                           uow:UoW = Depends(get_uow),
                           _=Depends(require_access_token)):
-    return await c_ingest.handle(uow, supplier_id=supplier_id, limit=limit)
+    return await c_ingest.handle(uow, id_supplier=id_supplier, limit=limit)

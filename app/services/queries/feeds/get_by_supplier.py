@@ -14,7 +14,7 @@ def _to_out(e) -> SupplierFeedOut:
         has_auth = False
     return SupplierFeedOut(
         id=e.id,
-        supplier_id=e.supplier_id,
+        id_supplier=e.id_supplier,
         kind=e.kind,
         format=e.format,
         url=e.url,
@@ -30,9 +30,9 @@ def _to_out(e) -> SupplierFeedOut:
         updated_at=e.updated_at,
     )
 
-def handle(uow: UoW, *, supplier_id: int):
+def handle(uow: UoW, *, id_supplier: int):
     repo = SupplierFeedRepository(uow.db)
-    e = repo.get_by_supplier(supplier_id)
+    e = repo.get_by_supplier(id_supplier)
     if not e:
         raise ValueError("FEED_NOT_FOUND")
     return e

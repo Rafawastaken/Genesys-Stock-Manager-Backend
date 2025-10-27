@@ -7,9 +7,9 @@ from app.infra.uow import UoW
 from app.repositories.mapper_repo import MapperRepository
 from app.schemas.mappers import FeedMapperOut
 
-def handle(uow: UoW, *, supplier_id:int) -> FeedMapperOut:
+def handle(uow: UoW, *, id_supplier:int) -> FeedMapperOut:
     repo = MapperRepository(uow.db)
-    e = repo.get_by_supplier(supplier_id)
+    e = repo.get_by_supplier(id_supplier)
     if not e:
         raise ValueError("MAPPER_NOT_FOUND")
 
@@ -20,7 +20,7 @@ def handle(uow: UoW, *, supplier_id:int) -> FeedMapperOut:
 
     return FeedMapperOut(
         id = e.id,
-        feed_id = e.feed_id,
+        id_feed = e.id_feed,
         profile = profile,
         version = e.version,
         created_at = e.created_at,

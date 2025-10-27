@@ -33,7 +33,7 @@ def _feed_to_out(f) -> SupplierFeedOut | None:
     # se o SupplierFeedOut exige *_json + has_auth, envia raw + flag
     return SupplierFeedOut.model_validate({
         "id": f.id,
-        "supplier_id": f.supplier_id,
+        "id_supplier": f.id_supplier,
         "kind": f.kind,
         "format": f.format,
         "url": f.url,
@@ -54,23 +54,23 @@ def _mapper_to_out(m) -> FeedMapperOut | None:
         return None
     return FeedMapperOut(
         id=m.id,
-        feed_id=m.id_feed,
+        id_feed=m.id_feed,
         profile=json.loads(m.profile_json) if getattr(m, "profile_json", None) else {},
         version=m.version or 1,
         created_at=m.created_at,
         updated_at=m.updated_at,
     )
 
-def handle(uow: UoW, *, supplier_id: int) -> SupplierDetailOut:
+def handle(uow: UoW, *, id_supplier: int) -> SupplierDetailOut:
     sup_repo = SupplierRepository(uow.db)
     feed_repo = SupplierFeedRepository(uow.db)
     map_repo  = MapperRepository(uow.db)
 
-    s = sup_repo.get(supplier_id)
+    s = sup_repo.get(id_supplier)
     if not s:
         raise HTTPException(status_code=404, detail="Supplier not found")
 
-    f = feed_repo.get_by_supplier(supplier_id)
+    f = feed_repo.get_by_supplier(id_supplier)
     m = map_repo.get_by_feed(f.id) if f else None
 
     return SupplierDetailOut(

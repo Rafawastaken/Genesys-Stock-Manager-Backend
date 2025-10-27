@@ -9,14 +9,14 @@ from app.repositories.mapper_repo import MapperRepository
 from app.schemas.suppliers import SupplierBundleUpdate, SupplierDetailOut
 from app.services.queries.suppliers import get_supplier_detail as q_detail
 
-def handle(uow: UoW, *, supplier_id: int, payload: SupplierBundleUpdate) -> SupplierDetailOut:
+def handle(uow: UoW, *, id_supplier: int, payload: SupplierBundleUpdate) -> SupplierDetailOut:
     sup_repo = SupplierRepository(uow.db)
     feed_repo = SupplierFeedRepository(uow.db)
     map_repo  = MapperRepository(uow.db)
 
     # 1) Supplier
     if payload.supplier is not None:
-        s = sup_repo.get(supplier_id)
+        s = sup_repo.get(id_supplier)
         if not s:
             raise HTTPException(status_code=404, detail="Supplier not found")
         data = payload.supplier
@@ -43,13 +43,13 @@ def handle(uow: UoW, *, supplier_id: int, payload: SupplierBundleUpdate) -> Supp
                 e.extra_json   = json.dumps(payload.feed.extra, ensure_ascii=False)
             if payload.feed.auth is not None:
                 e.auth_json    = json.dumps(payload.feed.auth, ensure_ascii=False)
-        feed_entity = feed_repo.upsert_for_supplier(supplier_id, mutate)
+        feed_entity = feed_repo.upsert_for_supplier(id_supplier, mutate)
 
-    # 3) Mapper (precisa saber o feed_id)
+    # 3) Mapper (precisa saber o id_feed)
     if payload.mapper is not None:
         # se não atualizámos feed agora, tenta obter o existente
         if feed_entity is None:
-            feed_entity = feed_repo.get_by_supplier(supplier_id)
+            feed_entity = feed_repo.get_by_supplier(id_supplier)
         if not feed_entity:
             raise HTTPException(status_code=400, detail="Cannot upsert mapper without a feed for this supplier")
         map_repo.upsert_profile(
@@ -62,4 +62,4 @@ def handle(uow: UoW, *, supplier_id: int, payload: SupplierBundleUpdate) -> Supp
     uow.commit()
 
     # Reutiliza a query de detalhe para devolver o estado atual
-    return q_detail.handle(uow, supplier_id=supplier_id)
+    return q_detail.handle(uow, id_supplier=id_supplier)

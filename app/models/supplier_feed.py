@@ -10,8 +10,10 @@ from app.infra.base import Base, utcnow
 
 class SupplierFeed(Base):
     __tablename__ = "supplier_feeds"
+    
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    supplier_id: Mapped[int] = mapped_column(ForeignKey("suppliers.id", ondelete="CASCADE"), unique=True, index=True)
+    id_supplier: Mapped[int] = mapped_column(ForeignKey("suppliers.id", ondelete="CASCADE"), unique=True, index=True)
+    
     kind: Mapped[str] = mapped_column(String(10))
     format: Mapped[str] = mapped_column(String(10))
     url: Mapped[str] = mapped_column(String(1000))

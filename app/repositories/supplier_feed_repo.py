@@ -10,25 +10,25 @@ class SupplierFeedRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get(self, feed_id: int) -> Optional[SupplierFeed]:
-        return self.db.get(SupplierFeed, feed_id)
+    def get(self, id_feed: int) -> Optional[SupplierFeed]:
+        return self.db.get(SupplierFeed, id_feed)
 
-    def get_by_supplier(self, supplier_id: int) -> Optional[SupplierFeed]:
-        return self.db.scalar(select(SupplierFeed).where(SupplierFeed.supplier_id == supplier_id))
+    def get_by_supplier(self, id_supplier: int) -> Optional[SupplierFeed]:
+        return self.db.scalar(select(SupplierFeed).where(SupplierFeed.id_supplier == id_supplier))
 
-    def upsert_for_supplier(self, supplier_id: int, mutate: Callable[[SupplierFeed], None]) -> SupplierFeed:
-        entity = self.get_by_supplier(supplier_id)
+    def upsert_for_supplier(self, id_supplier: int, mutate: Callable[[SupplierFeed], None]) -> SupplierFeed:
+        entity = self.get_by_supplier(id_supplier)
         creating = entity is None
         if creating:
-            entity = SupplierFeed(supplier_id=supplier_id)
+            entity = SupplierFeed(id_supplier=id_supplier)
             self.db.add(entity)
 
         mutate(entity)
         self.db.flush()          # 👈 sem commit
         return entity
 
-    def delete_by_supplier(self, supplier_id: int) -> bool:
-        entity = self.get_by_supplier(supplier_id)
+    def delete_by_supplier(self, id_supplier: int) -> bool:
+        entity = self.get_by_supplier(id_supplier)
         if not entity:
             return False
         self.db.delete(entity)

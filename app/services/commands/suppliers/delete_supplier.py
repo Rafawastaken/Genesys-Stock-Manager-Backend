@@ -2,9 +2,9 @@
 from app.infra.uow import UoW
 from app.repositories.supplier_repo import SupplierRepository
 
-def handle(uow: UoW, *, supplier_id: int) -> None:
+def handle(uow: UoW, *, id_supplier: int) -> None:
     repo = SupplierRepository(uow.db)
-    supplier = repo.get(supplier_id)
+    supplier = repo.get(id_supplier)
     if not supplier:
         raise ValueError("SUPPLIER_NOT_FOUND")
 

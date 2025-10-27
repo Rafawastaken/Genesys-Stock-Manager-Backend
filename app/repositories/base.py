@@ -12,8 +12,8 @@ class Repository(Generic[T]):
         self.db = db
         self.model = model
 
-    def get(self, entity_id: int) -> Optional[T]:
-        return self.db.get(self.model, entity_id)
+    def get(self, id_entity: int) -> Optional[T]:
+        return self.db.get(self.model, id_entity)
 
     def add(self, entity: T) -> T:
         self.db.add(entity)

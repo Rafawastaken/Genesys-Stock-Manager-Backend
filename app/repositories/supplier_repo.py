@@ -26,8 +26,8 @@ class SupplierRepository(Repository[Supplier]):
         ).scalars().all()
         return rows, int(total)
 
-    def delete_by_id(self, supplier_id: int) -> bool:
-        entity = self.get(supplier_id)  # vem do Repository base
+    def delete_by_id(self, id_supplier: int) -> bool:
+        entity = self.get(id_supplier)  # vem do Repository base
         if not entity:
             return False
         self.delete(entity)             # usa delete(entity) do base

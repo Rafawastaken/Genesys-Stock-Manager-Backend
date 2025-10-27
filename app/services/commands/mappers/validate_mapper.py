@@ -44,10 +44,10 @@ def _validate(profile: Dict[str, Any] | None, headers: Optional[List[str]]) -> D
         "headers_checked": headers_checked,
     }
 
-def handle(uow: UoW, *, feed_id: int, payload: MapperValidateIn) -> MapperValidateOut:
+def handle(uow: UoW, *, id_feed: int, payload: MapperValidateIn) -> MapperValidateOut:
     profile: Optional[Dict[str, Any]] = payload.profile
     if profile is None:
-        e = uow.mappers.get_by_feed(feed_id)
+        e = uow.mappers.get_by_feed(id_feed)
         if not e or not e.profile_json:
             return MapperValidateOut(ok=False, errors=[{"code": "not_found", "msg": "Mapper não existe para este feed"}],
                                      warnings=[], required_coverage={}, headers_checked=False)

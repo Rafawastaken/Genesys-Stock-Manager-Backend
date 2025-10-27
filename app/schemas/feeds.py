@@ -19,7 +19,7 @@ class SupplierFeedUpdate(SupplierFeedCreate):
 
 class SupplierFeedOut(BaseModel):
     id: int
-    supplier_id: int
+    id_supplier: int
     kind: str
     format: str
     url: str

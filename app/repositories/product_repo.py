@@ -19,10 +19,10 @@ class ProductRepository:
             return None
         return self.db.scalar(select(Product).where(Product.gtin == gtin))
 
-    def get_by_brand_mpn(self, brand_id: int, partnumber: str) -> Optional[Product]:
-        if not brand_id or not partnumber:
+    def get_by_brand_mpn(self, id_brand: int, partnumber: str) -> Optional[Product]:
+        if not id_brand or not partnumber:
             return None
-        stmt = select(Product).where(Product.id_brand == brand_id, Product.partnumber == partnumber)
+        stmt = select(Product).where(Product.id_brand == id_brand, Product.partnumber == partnumber)
         return self.db.scalar(stmt)
 
     def get_or_create(self, *, gtin: Optional[str], partnumber: Optional[str], brand_name: Optional[str]) -> Product:
@@ -33,29 +33,29 @@ class ProductRepository:
                 return p
 
         # 2) Brand + MPN
-        brand_id = None
+        id_brand = None
         if brand_name:
             b_repo = BrandRepository(self.db)
             brand = b_repo.get_or_create(brand_name)
-            brand_id = brand.id
+            id_brand = brand.id
 
-        if brand_id and partnumber:
-            p = self.get_by_brand_mpn(brand_id, partnumber)
+        if id_brand and partnumber:
+            p = self.get_by_brand_mpn(id_brand, partnumber)
             if p:
                 return p
 
         # 3) Criar novo se houver pelo menos uma chave
-        if not gtin and not (brand_id and partnumber):
+        if not gtin and not (id_brand and partnumber):
             raise ValueError("no product key (gtin or brand+mpn)")
 
-        p = Product(gtin=gtin, id_brand=brand_id, partnumber=partnumber)
+        p = Product(gtin=gtin, id_brand=id_brand, partnumber=partnumber)
         self.db.add(p)
         self.db.flush()
         return p
 
     # --- preencher canonicals se vazias ---
-    def fill_canonicals_if_empty(self, product_id: int, **fields):
-        p = self.db.get(Product, product_id)
+    def fill_canonicals_if_empty(self, id_product: int, **fields):
+        p = self.db.get(Product, id_product)
         if not p:
             return
         changed = False
@@ -70,8 +70,8 @@ class ProductRepository:
             self.db.flush()
 
     # --- brand/category se vazios ---
-    def fill_brand_category_if_empty(self, product_id: int, *, brand_name: Optional[str], category_name: Optional[str]):
-        p = self.db.get(Product, product_id)
+    def fill_brand_category_if_empty(self, id_product: int, *, brand_name: Optional[str], category_name: Optional[str]):
+        p = self.db.get(Product, id_product)
         if not p:
             return
         changed = False
@@ -91,11 +91,11 @@ class ProductRepository:
             self.db.flush()
 
     # --- meta (sem tocar em valores existentes) ---
-    def add_meta_if_missing(self, product_id: int, *, name: str, value: str) -> tuple[bool, bool]:
-        stmt = select(ProductMeta).where(ProductMeta.id_product == product_id, ProductMeta.name == name)
+    def add_meta_if_missing(self, id_product: int, *, name: str, value: str) -> tuple[bool, bool]:
+        stmt = select(ProductMeta).where(ProductMeta.id_product == id_product, ProductMeta.name == name)
         row = self.db.scalar(stmt)
         if row is None:
-            self.db.add(ProductMeta(id_product=product_id, name=name, value=value))
+            self.db.add(ProductMeta(id_product=id_product, name=name, value=value))
             return True, False
         else:
             return (False, (row.value or "") != (value or ""))

@@ -24,13 +24,13 @@ def list_suppliers(
     items, total = q_list.handle(uow, search=search, page=page, page_size=page_size)
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
-@router.get("/{supplier_id}", response_model=SupplierDetailOut)
+@router.get("/{id_supplier}", response_model=SupplierDetailOut)
 def get_supplier_detail(
-    supplier_id: int,
+    id_supplier: int,
     uow: UoW = Depends(get_uow),
     _=Depends(require_access_token),
 ):
-    return q_detail.handle(uow, supplier_id=supplier_id)
+    return q_detail.handle(uow, id_supplier=id_supplier)
 
 @router.post("", response_model=SupplierOut, status_code=status.HTTP_201_CREATED)
 def create_supplier(
@@ -40,23 +40,23 @@ def create_supplier(
 ):
     return c_create.handle(uow, data=payload)
 
-@router.put("/{supplier_id}", response_model=SupplierDetailOut)
+@router.put("/{id_supplier}", response_model=SupplierDetailOut)
 def update_supplier_bundle(
-    supplier_id: int = Path(..., ge=1),
+    id_supplier: int = Path(..., ge=1),
     payload: SupplierBundleUpdate = ...,
     uow: UoW = Depends(get_uow),
     _=Depends(require_access_token),
 ):
-    return c_update_bundle.handle(uow, supplier_id=supplier_id, payload=payload)
+    return c_update_bundle.handle(uow, id_supplier=id_supplier, payload=payload)
 
-@router.delete("/{supplier_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{id_supplier}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_supplier_endpoint(
-    supplier_id: int,
+    id_supplier: int,
     uow: UoW = Depends(get_uow),
     _=Depends(require_access_token),
 ):
     try:
-        c_delete.handle(uow, supplier_id=supplier_id)
+        c_delete.handle(uow, id_supplier=id_supplier)
     except ValueError:
         raise HTTPException(status_code=404, detail="Supplier not found")
     return  # 204

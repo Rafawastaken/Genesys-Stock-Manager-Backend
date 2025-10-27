@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 class FeedMapperOut(BaseModel):
     id: int
-    feed_id: int
+    id_feed: int
     profile: Dict[str, Any]
     version: int
     created_at: datetime

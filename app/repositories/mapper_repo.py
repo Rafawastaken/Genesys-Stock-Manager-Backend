@@ -11,18 +11,18 @@ class MapperRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get(self, mapper_id: int) -> Optional[FeedMapper]:
-        return self.db.get(FeedMapper, mapper_id)
+    def get(self, id_mapper: int) -> Optional[FeedMapper]:
+        return self.db.get(FeedMapper, id_mapper)
 
     def get_by_feed(self, id_feed: int) -> Optional[FeedMapper]:
         return self.db.scalar(select(FeedMapper).where(FeedMapper.id_feed == id_feed))
 
-    def get_by_supplier(self, supplier_id: int) -> Optional[FeedMapper]:
-        # SupplierFeed.supplier_id é unique → devolve no máx. 1 Feed → 1 Mapper
+    def get_by_supplier(self, id_supplier: int) -> Optional[FeedMapper]:
+        # SupplierFeed.id_supplier é unique → devolve no máx. 1 Feed → 1 Mapper
         stmt = (
             select(FeedMapper)
             .join(SupplierFeed, FeedMapper.id_feed == SupplierFeed.id)
-            .where(SupplierFeed.supplier_id == supplier_id)
+            .where(SupplierFeed.id_supplier == id_supplier)
         )
         return self.db.scalar(stmt)
 

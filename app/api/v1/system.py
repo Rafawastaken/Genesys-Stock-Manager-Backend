@@ -6,13 +6,13 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.core.config import settings
-from app.infra.session import get_session          # 👈 trocar aqui
+from app.infra.session import get_session
 from app.schemas.system import HealthDTO
 
 router = APIRouter(tags=["health"])
 
 @router.get("/healthz", response_model=HealthDTO)
-def healthz(request: Request, db: Session = Depends(get_session)):   # 👈 e aqui
+def healthz(request: Request, db: Session = Depends(get_session)):
     tz = ZoneInfo(settings.TIMEZONE)
     now = datetime.now(tz)
 

@@ -14,31 +14,31 @@ router = APIRouter(prefix="/mappers", tags=["mappers"])
 log = logging.getLogger("gsm.api.mappers")
 
 # -------------------------------
-# GET /mappers/feed/{feed_id}
+# GET /mappers/feed/{id_feed}
 # -------------------------------
-@router.get("/feed/{feed_id}")
-def get_mapper(feed_id: int, uow: UoW = Depends(get_uow), _=Depends(require_access_token)):
+@router.get("/feed/{id_feed}")
+def get_mapper(id_feed: int, uow: UoW = Depends(get_uow), _=Depends(require_access_token)):
     try:
-        return q_get(uow, feed_id=feed_id)
+        return q_get(uow, id_feed=id_feed)
     except ValueError:
         raise HTTPException(status_code=404, detail="Mapper not found")
 
 # -------------------------------
-# GET /mappers/supplier/{supplier_id}
+# GET /mappers/supplier/{id_supplier}
 # -------------------------------
-@router.get("/supplier/{supplier_id}")
-def get_mapper_by_supplier(supplier_id: int, uow: UoW = Depends(get_uow), _=Depends(require_access_token)):
+@router.get("/supplier/{id_supplier}")
+def get_mapper_by_supplier(id_supplier: int, uow: UoW = Depends(get_uow), _=Depends(require_access_token)):
     try:
-        return q_get_by_supplier(uow, supplier_id=supplier_id)
+        return q_get_by_supplier(uow, id_supplier=id_supplier)
     except ValueError:
         raise HTTPException(status_code=404, detail="Mapper not found")
 
 # -------------------------------
-# POST /mappers/feed/{feed_id}/validate
+# POST /mappers/feed/{id_feed}/validate
 # -------------------------------
-@router.post("/feed/{feed_id}/validate", response_model=MapperValidateOut, dependencies=[Depends(require_access_token)])
-def validate_mapper(feed_id: int, payload: MapperValidateIn, uow: UoW = Depends(get_uow)):
-    return c_validate(uow, id_feed=feed_id, payload=payload)
+@router.post("/feed/{id_feed}/validate", response_model=MapperValidateOut, dependencies=[Depends(require_access_token)])
+def validate_mapper(id_feed: int, payload: MapperValidateIn, uow: UoW = Depends(get_uow)):
+    return c_validate(uow, id_feed=id_feed, payload=payload)
 
 # -------------------------------
 # GET /mappers/ops

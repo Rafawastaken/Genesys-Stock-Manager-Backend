@@ -61,7 +61,7 @@ def _split_payload(mapped: Dict[str, Any]):
 
 
 
-async def handle(uow: UoW, *, supplier_id: int, limit: Optional[int] = None) -> Dict[str, Any]:
+async def handle(uow: UoW, *, id_supplier: int, limit: Optional[int] = None) -> Dict[str, Any]:
     # repos
     run_repo    = FeedRunRepository(uow.db)
     feed_repo   = SupplierFeedRepository(uow.db)
@@ -71,15 +71,15 @@ async def handle(uow: UoW, *, supplier_id: int, limit: Optional[int] = None) -> 
     ev_repo     = ProductEventRepository(uow.db)
 
     # valida feed do fornecedor
-    feed = feed_repo.get_by_supplier(supplier_id)
+    feed = feed_repo.get_by_supplier(id_supplier)
     if not feed or not feed.active:
         raise HTTPException(status_code=404, detail="Feed not found for supplier")
 
     # inicia run
     run = run_repo.start(id_feed=feed.id)
-    run_id = run.id
-    log.info("[run=%s] start ingest supplier_id=%s feed_id=%s format=%s url=%s",
-             run_id, supplier_id, feed.id, feed.format, feed.url)
+    id_run = run.id
+    log.info("[run=%s] start ingest id_supplier=%s id_feed=%s format=%s url=%s",
+             id_run, id_supplier, feed.id, feed.format, feed.url)
 
     try:
         # download
@@ -90,10 +90,10 @@ async def handle(uow: UoW, *, supplier_id: int, limit: Optional[int] = None) -> 
         )
 
         if status_code < 200 or status_code >= 300:
-            run_repo.finalize_http_error(run_id, http_status=status_code, error_msg=f"HTTP {status_code}")
+            run_repo.finalize_http_error(id_run, http_status=status_code, error_msg=f"HTTP {status_code}")
             uow.commit()
-            log.error("[run=%s] download error: HTTP %s", run_id, status_code)
-            return {"ok": False, "run_id": run_id, "error": f"HTTP {status_code}"}
+            log.error("[run=%s] download error: HTTP %s", id_run, status_code)
+            return {"ok": False, "id_run": id_run, "error": f"HTTP {status_code}"}
 
         # parse rows
         fmt = (feed.format or "").lower()
@@ -106,7 +106,7 @@ async def handle(uow: UoW, *, supplier_id: int, limit: Optional[int] = None) -> 
         total = len(rows)
         if limit is not None:
             rows = rows[:limit]
-        log.info("[run=%s] fetched rows: total=%s using=%s", run_id, total, len(rows))
+        log.info("[run=%s] fetched rows: total=%s using=%s", id_run, total, len(rows))
 
         # engine de mapeamento
         profile = mapper_repo.get_profile(feed.id)
@@ -118,7 +118,7 @@ async def handle(uow: UoW, *, supplier_id: int, limit: Optional[int] = None) -> 
             mapped, err = engine.map_row(raw_row)
             if not mapped:
                 bad += 1
-                log.warning("[run=%s] row#%s invalid (mapper): %s", run_id, idx, err)
+                log.warning("[run=%s] row#%s invalid (mapper): %s", id_run, idx, err)
                 continue
 
             # normalizações (ex: image_url/image_urls)
@@ -136,7 +136,7 @@ async def handle(uow: UoW, *, supplier_id: int, limit: Optional[int] = None) -> 
                 p = prod_repo.get_or_create(gtin=gtin, partnumber=pn, brand_name=brand_name)
             except ValueError:
                 bad += 1
-                log.warning("[run=%s] row#%s skipped (no product key)", run_id, idx)
+                log.warning("[run=%s] row#%s skipped (no product key)", id_run, idx)
                 continue
             except IntegrityError as ie:
                 # corrida/unique — rollback curto e tenta obter
@@ -149,7 +149,7 @@ async def handle(uow: UoW, *, supplier_id: int, limit: Optional[int] = None) -> 
                         p = None
                 if not p:
                     bad += 1
-                    log.warning("[run=%s] row#%s skipped after IntegrityError: %s", run_id, idx, ie)
+                    log.warning("[run=%s] row#%s skipped after IntegrityError: %s", id_run, idx, ie)
                     continue
 
             # preencher canónicos só se vazio + associar brand/category se em falta
@@ -179,7 +179,7 @@ async def handle(uow: UoW, *, supplier_id: int, limit: Optional[int] = None) -> 
                 if inserted:
                     changed += 1
 
-            # oferta do fornecedor (upsert por (feed_id, sku) + fingerprint interno do repo)
+            # oferta do fornecedor (upsert por (id_feed, sku) + fingerprint interno do repo)
             price = offer_payload["price"]
             stock = offer_payload["stock"]
             sku   = offer_payload["sku"] or (pn or gtin or f"row-{idx}")
@@ -192,51 +192,51 @@ async def handle(uow: UoW, *, supplier_id: int, limit: Optional[int] = None) -> 
                 stock=stock,
                 gtin=gtin,
                 partnumber=pn,
-                id_feed_run=run_id,
+                id_feed_run=id_run,
             )
 
             # 1 linha que decide o evento:
             changed += ev_repo.record_from_item_change(
                 id_product=p.id,
-                id_supplier=supplier_id,
+                id_supplier=id_supplier,
                 gtin=gtin,
                 new_price=price,
                 new_stock=stock,
                 created=created,
                 changed=changed_item,
-                id_feed_run=run_id,
+                id_feed_run=id_run,
             )
 
             ok += 1
 
             if idx % 500 == 0:
                 log.info("[run=%s] progress %s/%s ok=%s bad=%s",
-                         run_id, idx, len(rows), ok, bad)
+                         id_run, idx, len(rows), ok, bad)
 
         # marca EOL para itens não vistos neste run
         eol_marked = ev_repo.mark_eol_for_unseen_items(
-            id_feed=feed.id, id_supplier=supplier_id, id_feed_run=run_id
+            id_feed=feed.id, id_supplier=id_supplier, id_feed_run=id_run
         )
-        log.info("[run=%s] EOL marked=%s", run_id, eol_marked)
+        log.info("[run=%s] EOL marked=%s", id_run, eol_marked)
 
         # finaliza run
         run_repo.finalize_ok(
-            run_id,
+            id_run,
             rows_total=total,
             rows_changed=changed,
             partial=bool(bad and ok),
         )
         uow.commit()
 
-        status = run_repo.get(run_id).status  # para devolver ao caller
+        status = run_repo.get(id_run).status  # para devolver ao caller
         log.info(
             "[run=%s] done status=%s total=%s ok=%s bad=%s changed=%s eol=%s",
-            run_id, status, total, ok, bad, changed, eol_marked
+            id_run, status, total, ok, bad, changed, eol_marked
         )
 
         return {
             "ok": True,
-            "run_id": run_id,
+            "id_run": id_run,
             "rows_total": total,
             "rows_processed": ok + bad,
             "rows_valid": ok,
@@ -253,12 +253,12 @@ async def handle(uow: UoW, *, supplier_id: int, limit: Optional[int] = None) -> 
         except Exception:
             pass
         try:
-            run_repo.finalize_error(run_id, error_msg=f"{type(e).__name__}: {e}")
+            run_repo.finalize_error(id_run, error_msg=f"{type(e).__name__}: {e}")
             uow.commit()
         except Exception:
             try:
                 uow.db.rollback()
             except Exception:
                 pass
-        log.exception("[run=%s] ingest failed", run_id)
-        return {"ok": False, "run_id": run_id, "error": str(e)}
+        log.exception("[run=%s] ingest failed", id_run)
+        return {"ok": False, "id_run": id_run, "error": str(e)}
