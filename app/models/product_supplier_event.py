@@ -10,14 +10,20 @@ class ProductSupplierEvent(Base):
         CheckConstraint("stock >= 0", name="ck_pse_stock_nonneg"),
         Index("ix_pse_product_created", "id_product", "created_at"),
         Index("ix_pse_supplier_product", "id_supplier", "id_product"),
+        Index("ix_pse_gtin_created", "gtin", "created_at"),
     )
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     id_product: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), index=True)
     id_supplier: Mapped[int] = mapped_column(ForeignKey("suppliers.id", ondelete="CASCADE"), index=True)
+
     price: Mapped[str] = mapped_column(String(40), nullable=False)
     stock: Mapped[int] = mapped_column(Integer, nullable=False)
-    supplier_partnumber: Mapped[str | None] = mapped_column(Text, nullable=True)
-    feed_run_id: Mapped[int | None] = mapped_column(ForeignKey("feed_runs.id", ondelete="SET NULL"), nullable=True)
+
+    gtin: Mapped[str | None] = mapped_column(Text, nullable=True)
+    id_feed_run: Mapped[int | None] = mapped_column(ForeignKey("feed_runs.id", ondelete="SET NULL"), nullable=True)
+
     reason: Mapped[str] = mapped_column(String(10), default="init", nullable=False)  # init|change|eol
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
-    product: Mapped["Product"] = relationship("Product", back_populates="supplier_events")
+
+    product = relationship("Product", back_populates="supplier_events")

@@ -1,8 +1,8 @@
 # app/services/queries/feeds/get_by_supplier.py
 from __future__ import annotations
 import json
-from fastapi import HTTPException, status
 from app.infra.uow import UoW
+from app.repositories.supplier_feed_repo import SupplierFeedRepository
 from app.schemas.feeds import SupplierFeedOut
 
 def _to_out(e) -> SupplierFeedOut:
@@ -30,8 +30,9 @@ def _to_out(e) -> SupplierFeedOut:
         updated_at=e.updated_at,
     )
 
-def handle(uow: UoW, supplier_id: int) -> SupplierFeedOut:
-    e = uow.feeds.get_by_supplier(supplier_id)
+def handle(uow: UoW, *, supplier_id: int):
+    repo = SupplierFeedRepository(uow.db)
+    e = repo.get_by_supplier(supplier_id)
     if not e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Feed not found for supplier")
-    return _to_out(e)
+        raise ValueError("FEED_NOT_FOUND")
+    return e

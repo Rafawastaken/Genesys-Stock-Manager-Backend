@@ -2,6 +2,10 @@ from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field
 
+from app.schemas.feeds import SupplierFeedOut, SupplierFeedUpdate
+from app.schemas.mappers import FeedMapperOut, FeedMapperUpsert
+
+
 class SupplierCreate(BaseModel):
     name: str
     active: bool = True
@@ -41,3 +45,13 @@ class SupplierList(BaseModel):
     total: int
     page: int
     page_size: int
+
+class SupplierDetailOut(BaseModel):
+    supplier: SupplierOut
+    feed: Optional[SupplierFeedOut]
+    mapper: Optional[FeedMapperOut]
+
+class SupplierBundleUpdate(BaseModel):
+    supplier: Optional[SupplierUpdate] = None
+    feed: Optional[SupplierFeedUpdate] = None
+    mapper: Optional[FeedMapperUpsert] = None

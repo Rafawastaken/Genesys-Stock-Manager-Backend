@@ -1,7 +1,7 @@
 # app/api/v1/feeds.py
 from __future__ import annotations
 import logging
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from app.core.deps import get_uow, require_access_token
 from app.infra.uow import UoW
 from app.schemas.feeds import (
@@ -16,9 +16,12 @@ from app.services.commands.feeds.test_feed import handle as c_test
 router = APIRouter(prefix="/feeds", tags=["feeds"])
 log = logging.getLogger("gsm.api.feeds")
 
-@router.get("/supplier/{supplier_id}", response_model=SupplierFeedOut, dependencies=[Depends(require_access_token)])
-def get_supplier_feed(supplier_id: int, uow: UoW = Depends(get_uow)):
-    return q_get_by_supplier(uow, supplier_id)
+@router.get("/supplier/{supplier_id}")
+def get_supplier_feed(supplier_id: int, uow: UoW = Depends(get_uow), _=Depends(require_access_token)):
+    try:
+        return q_get_by_supplier(uow, supplier_id=supplier_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Feed not found")
 
 @router.put("/supplier/{supplier_id}", response_model=SupplierFeedOut, dependencies=[Depends(require_access_token)])
 def upsert_supplier_feed(

@@ -1,32 +1,73 @@
 # app/repositories/supplier_item_repo.py
-# repository for SupplierItem model
-
-import hashlib
-from typing import Optional
-from sqlalchemy import select
+from __future__ import annotations
+from typing import Optional, Tuple
 from sqlalchemy.orm import Session
-from .base import Repository
+from sqlalchemy import select
+import hashlib
 from app.models.supplier_item import SupplierItem
 
-class SupplierItemRepository(Repository[SupplierItem]):
-    def __init__(self, db: Session): super().__init__(db, SupplierItem)
+def _mk_fp(*parts: str) -> str:
+    raw = "|".join("" if p is None else str(p) for p in parts)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
-    @staticmethod
-    def _fp(price: str, stock: int) -> str:
-        return hashlib.sha256(f"{price}|{stock}".encode()).hexdigest()
+class SupplierItemRepository:
+    def __init__(self, db: Session):
+        self.db = db
 
-    def upsert(self, *, feed_id: int, sku: str, price: str, stock: int,
-               gtin: Optional[str], partnumber: Optional[str], last_seen_run_id: Optional[int]) -> SupplierItem:
-        it = self.db.scalar(select(SupplierItem).where(SupplierItem.feed_id==feed_id, SupplierItem.sku==sku))
-        fp = self._fp(price, stock)
-        if it:
-            changed = (it.price!=price or it.stock!=stock or it.gtin!=gtin or
-                       it.partnumber!=partnumber or it.fingerprint!=fp or it.last_seen_run_id!=last_seen_run_id)
-            if changed:
-                it.price=price; it.stock=stock; it.gtin=gtin; it.partnumber=partnumber
-                it.fingerprint=fp; it.last_seen_run_id=last_seen_run_id
-            return it
-        it = SupplierItem(feed_id=feed_id, sku=sku, gtin=gtin, partnumber=partnumber,
-                          price=price, stock=stock, fingerprint=fp, last_seen_run_id=last_seen_run_id)
-        self.db.add(it); self.db.flush()
-        return it
+    def upsert(
+        self,
+        *,
+        id_feed: int,
+        id_product: int,
+        sku: str,
+        price: str,
+        stock: int,
+        gtin: Optional[str],
+        partnumber: Optional[str],
+        id_feed_run: int,
+    ) -> Tuple[SupplierItem, bool, bool, Optional[str], Optional[int]]:
+        stmt = select(SupplierItem).where(SupplierItem.id_feed == id_feed, SupplierItem.sku == sku)
+        item = self.db.scalar(stmt)
+
+        created = False
+        changed = False
+        old_price: Optional[str] = None
+        old_stock: Optional[int] = None
+
+        new_fp = _mk_fp(id_feed, id_product, sku, gtin, partnumber, price, stock)
+
+        if item is None:
+            item = SupplierItem(
+                id_feed=id_feed,
+                id_product=id_product,
+                sku=sku,
+                gtin=gtin,
+                partnumber=partnumber,
+                price=price,
+                stock=stock,
+                fingerprint=new_fp,
+                id_feed_run=id_feed_run,
+            )
+            self.db.add(item)
+            created = True
+        else:
+            old_price = item.price
+            old_stock = item.stock
+            changed = (
+                (old_price != price)
+                or (old_stock != stock)
+                or (item.id_product != id_product)
+                or (item.gtin != gtin)
+                or (item.partnumber != partnumber)
+            )
+
+            item.id_product = id_product
+            item.gtin = gtin
+            item.partnumber = partnumber
+            item.price = price
+            item.stock = stock
+            item.id_feed_run = id_feed_run
+            item.fingerprint = new_fp
+
+        self.db.flush()
+        return item, created, changed, old_price, old_stock
