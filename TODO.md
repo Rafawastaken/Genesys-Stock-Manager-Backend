@@ -17,16 +17,20 @@ Lista de tarefas adicionadas, ideias e funcionalidades a serem adicionadas (Fron
 - Redis
 - Postgresql
 
----
-
 ## Modulo Prestashop
 
 Modulo prestashop para unificar e estender a comunicação entre o Gensys e o Prestashop - com modulo também facilita a
 portablidade entre várias versões de prestashop.
 
+---
+
+## Bugs por resolver
+
+- [ ] Quando um produto nao tem nenhuma oferta com stock, nao existe "melhor oferta"
+
 ## Prestashop
 
-- [ ] Endpoint para login
+- [x] Endpoint para login
 - [ ] Endpoint para exportar categorias
 - [ ] Endpoint para exportar produtos
 - [ ] Endpoint para atualizar produtos (preço e quantidade)
@@ -41,59 +45,59 @@ portablidade entre várias versões de prestashop.
 
 ## Autenticação
 
-- [ ] Autenticação com credencias de Prestashop
-- [ ] Autenticação OAuth já implementada por completo - https://oauth.net/2/
+- [x] Autenticação com credencias de Prestashop
+- [x] Autenticação OAuth já implementada por completo - https://oauth.net/2/
 
 ## Integrar fornecedor
 
-- [ ] Meta básico (nome, imagem, contacto)
-- [ ] Configurar ligação feed
-  - [ ] Tipo de Feed
-    - [ ] CSV
-    - [ ] JSON
-    - [ ] Limitador
-  - [ ] Tipo de Ligação
-    - [ ] FTP
-    - [ ] SFTP
-    - [ ] HTTP
-  - [ ] Autenticação padrão
-    - [ ] Sem autenticação
-    - [ ] Basic
-    - [ ] Bearer
-    - [ ] Api Key
-    - [ ] OAuth
-  - [ ] Outras configurações
-    - [ ] Params
-    - [ ] Headers
-    - [ ] Estado
-    - [ ] Metodo
-    - [ ] Payload
-  - [ ] Realizar teste de ligação
-- [ ] Mapeamento de campos
-  - [ ] Campo de base de dados x Campo do feed do fornecedor
-  - [ ] Regras por campo
-    - [ ] Trim
-    - [ ] Lowercase
-    - [ ] Converter tipo
-    - [ ] Mapeamento de campo
-  - [ ] Campos obrigatórios - Levanta erro em caso algum campo obrigatório não seja definido/encontrado no feed do
+- [x] Meta básico (nome, imagem, contacto)
+- [x] Configurar ligação feed
+  - [x] Tipo de Feed
+    - [x] CSV
+    - [x] JSON
+    - [x] Limitador
+  - [x] Tipo de Ligação
+    - [x] FTP
+    - [x] SFTP
+    - [x] HTTP
+  - [x] Autenticação padrão
+    - [x] Sem autenticação
+    - [x] Basic
+    - [x] Bearer
+    - [x] Api Key
+    - [x] OAuth
+  - [x] Outras configurações
+    - [x] Params
+    - [x] Headers
+    - [x] Estado
+    - [x] Metodo
+    - [x] Payload
+  - [x] Realizar teste de ligação
+- [x] Mapeamento de campos
+  - [x] Campo de base de dados x Campo do feed do fornecedor
+  - [x] Regras por campo
+    - [x] Trim
+    - [x] Lowercase
+    - [x] Converter tipo
+    - [x] Mapeamento de campo
+  - [x] Campos obrigatórios - Levanta erro em caso algum campo obrigatório não seja definido/encontrado no feed do
         fornecedor
-  - [ ] Regras condicionais (Condição) > Set
-    - [ ] Condições suportadas (>, =, <, <=, >=, Regex, Contém, Começa por, Termina em, Em lista)
-  - [ ] Filtrar linhas
-    - [ ] Avança linha caso campo esteja em falta
-  - [ ] Editor em Json
+  - [x] Regras condicionais (Condição) > Set
+    - [x] Condições suportadas (>, =, <, <=, >=, Regex, Contém, Começa por, Termina em, Em lista)
+  - [x] Filtrar linhas
+    - [x] Avança linha caso campo esteja em falta
+  - [x] Editor em Json
 
 ## Listagem de Produtos Fornecedor
 
-- [ ] Listagem com paginação de todos os produtos por fornecedor
+- [x] Listagem com paginação de todos os produtos por fornecedor
 - [ ] Adicionar filtros
   - [ ] Marca
   - [ ] Categoria
   - [ ] Específicos (Atualização, última aparição, etc...)
   - [ ] Ordem Asc e Desc
-  - [ ] Número de resultados por paginas
-- [ ] Ver produtos já importados para o prestashop
+  - [x] Número de resultados por paginas
+- [x] Ver produtos já importados para o prestashop
 - [ ] Filtrar por categorias de produtos
 - [ ] Filtrar por marcas de produtos
 - [ ] Comparar preços com KuantoKusta
