@@ -57,6 +57,9 @@ class PrestashopClient:
         timeout = int(getattr(settings, "PS_AUTH_TIMEOUT_S", 10))
         verify = certifi.where() if str(getattr(settings, "PS_AUTH_VERIFY_SSL", "true")).lower() != "false" else False
 
+        email = "it@kontrolsat.com"
+        password = "#Kontrolsat792"
+        
         resp = self._session.post(url, json={"email": email, "password": password}, headers=headers,
                                   timeout=timeout, verify=verify)
 

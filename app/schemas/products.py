@@ -6,7 +6,7 @@ from datetime import datetime
 class OfferOut(BaseModel):
     id_supplier: int
     supplier_name: Optional[str] = None
-    supplier_image: Optional[str] = None  # <- aqui
+    supplier_image: Optional[str] = None
     id_feed: int
     sku: str
     price: Optional[str] = None
@@ -17,6 +17,7 @@ class OfferOut(BaseModel):
 class ProductOut(BaseModel):
     id: int
     gtin: Optional[str] = None
+    id_ecommerce: Optional[int] = None
     id_brand: Optional[int] = None
     brand_name: Optional[str] = None
     id_category: Optional[int] = None
@@ -25,7 +26,7 @@ class ProductOut(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     image_url: Optional[str] = None
-    # category_path: Optional[str] = None  # <- REMOVIDO
+    # category_path removido
     weight_str: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

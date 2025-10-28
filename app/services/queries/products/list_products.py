@@ -48,7 +48,7 @@ def handle(
     category: Optional[str] = None,
     has_stock: Optional[bool] = None,
     id_supplier: Optional[int] = None,
-    sort: str = "recent",  # "recent" | "name"
+    sort: str = "recent",
 ) -> ProductListOut:
     db = uow.db
     b = aliased(Brand)
@@ -58,13 +58,14 @@ def handle(
         select(
             Product.id,
             Product.gtin,
+            Product.id_ecommerce,                    # <- NOVO
             Product.id_brand,
             Product.id_category,
             Product.partnumber,
             Product.name,
             Product.description,
             Product.image_url,
-            # Product.category_path,  # <- REMOVIDO
+            # Product.category_path removido
             Product.weight_str,
             Product.created_at,
             Product.updated_at,
@@ -96,11 +97,13 @@ def handle(
     if category:
         base = base.where(c.name.ilike(f"%{category.strip()}%"))
 
+    # --- CORREÇÃO DO has_stock ---
     if has_stock is not None or id_supplier is not None:
         si = aliased(SupplierItem)
         sf = aliased(SupplierFeed)
+        # NUNCA usar COUNT(*) dentro de EXISTS — retorna sempre 1 linha.
         exists_q = (
-            select(func.count(1))
+            select(1)
             .select_from(si)
             .join(sf, sf.id == si.id_feed)
             .where(si.id_product == Product.id)
@@ -109,7 +112,9 @@ def handle(
             exists_q = exists_q.where(si.stock > 0)
         if id_supplier is not None:
             exists_q = exists_q.where(sf.id_supplier == id_supplier)
+
         base = base.where(exists(exists_q))
+    # -----------------------------
 
     if sort == "name":
         base = base.order_by(Product.name.asc().nulls_last())
@@ -119,7 +124,7 @@ def handle(
             Product.created_at.desc()
         )
 
-    total = uow.db.scalar(select(func.count()).select_from(base.subquery())) or 0
+    total = db.scalar(select(func.count()).select_from(base.subquery())) or 0
 
     page = max(1, page)
     page_size = max(1, min(page_size, 100))
@@ -135,6 +140,7 @@ def handle(
         items_map[r.id] = ProductOut(
             id=r.id,
             gtin=r.gtin,
+            id_ecommerce=r.id_ecommerce,            # <- NOVO
             id_brand=r.id_brand,
             brand_name=r.brand_name,
             id_category=r.id_category,
@@ -143,7 +149,7 @@ def handle(
             name=r.name,
             description=r.description,
             image_url=r.image_url,
-            # category_path=r.category_path,  # <- REMOVIDO
+            # category_path removido
             weight_str=r.weight_str,
             created_at=r.created_at,
             updated_at=r.updated_at,
@@ -158,7 +164,7 @@ def handle(
         offer = OfferOut(
             id_supplier=o["id_supplier"],
             supplier_name=o.get("supplier_name"),
-            supplier_image=o.get("supplier_image"),  # <- GARANTIR QUE VEM DO REPO
+            supplier_image=o.get("supplier_image"),
             id_feed=o["id_feed"],
             sku=o["sku"],
             price=o["price"],
