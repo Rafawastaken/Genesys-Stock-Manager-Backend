@@ -1,5 +1,6 @@
+# app/services/queries/products/list_products.py
 from __future__ import annotations
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, List
 from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import select, func, exists
@@ -63,7 +64,7 @@ def handle(
             Product.name,
             Product.description,
             Product.image_url,
-            Product.category_path,
+            # Product.category_path,  # <- REMOVIDO
             Product.weight_str,
             Product.created_at,
             Product.updated_at,
@@ -78,9 +79,9 @@ def handle(
     if q:
         like = f"%{q.strip()}%"
         base = base.where(
-            Product.name.ilike(like) |
-            Product.partnumber.ilike(like) |
-            Product.gtin.ilike(like)
+            Product.name.ilike(like)
+            | Product.partnumber.ilike(like)
+            | Product.gtin.ilike(like)
         )
     if gtin:
         base = base.where(Product.gtin == gtin)
@@ -102,7 +103,7 @@ def handle(
             select(func.count(1))
             .select_from(si)
             .join(sf, sf.id == si.id_feed)
-            .where(si.id_product == Product.id)       # <- id_product
+            .where(si.id_product == Product.id)
         )
         if has_stock is True:
             exists_q = exists_q.where(si.stock > 0)
@@ -113,7 +114,10 @@ def handle(
     if sort == "name":
         base = base.order_by(Product.name.asc().nulls_last())
     else:
-        base = base.order_by(Product.updated_at.desc().nulls_last(), Product.created_at.desc())
+        base = base.order_by(
+            Product.updated_at.desc().nulls_last(),
+            Product.created_at.desc()
+        )
 
     total = uow.db.scalar(select(func.count()).select_from(base.subquery())) or 0
 
@@ -139,7 +143,7 @@ def handle(
             name=r.name,
             description=r.description,
             image_url=r.image_url,
-            category_path=r.category_path,
+            # category_path=r.category_path,  # <- REMOVIDO
             weight_str=r.weight_str,
             created_at=r.created_at,
             updated_at=r.updated_at,
@@ -154,6 +158,7 @@ def handle(
         offer = OfferOut(
             id_supplier=o["id_supplier"],
             supplier_name=o.get("supplier_name"),
+            supplier_image=o.get("supplier_image"),  # <- GARANTIR QUE VEM DO REPO
             id_feed=o["id_feed"],
             sku=o["sku"],
             price=o["price"],
@@ -161,7 +166,7 @@ def handle(
             id_last_seen_run=o.get("id_last_seen_run"),
             updated_at=o.get("updated_at"),
         )
-        items_map[o["id_product"]].offers.append(offer)  # <- id_product
+        items_map[o["id_product"]].offers.append(offer)
 
     for po in items_map.values():
         po.best_offer = _best_offer(po.offers) if po.offers else None

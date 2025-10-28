@@ -75,51 +75,33 @@ class SupplierItemRepository:
         return item, created, changed, old_price, old_stock
 
 
-    def list_offers_for_product_ids(
-        self,
-        product_ids: Iterable[int],
-        *,
-        only_in_stock: bool = False
-    ) -> List[Dict[str, Any]]:
-        ids = list(product_ids)
-        if not ids:
-            return []
+    def list_offers_for_product_ids(self, product_ids: list[int], only_in_stock: bool = False):
+        si = SupplierItem
+        sf = SupplierFeed
+        s  = Supplier
 
-        stmt = (
+        q = (
             select(
-                SupplierItem.id_product,
-                SupplierItem.id_feed.label("id_feed"),
-                SupplierItem.sku,
-                SupplierItem.price,
-                SupplierItem.stock,
-                SupplierItem.id_feed_run.label("id_last_seen_run"),  # <- aqui
-                SupplierItem.updated_at,
-                SupplierFeed.id_supplier,
-                Supplier.name.label("supplier_name"),
+                si.id_product.label("id_product"),
+                si.id_feed.label("id_feed"),
+                sf.id_supplier.label("id_supplier"),
+                s.name.label("supplier_name"),
+                s.logo_image.label("supplier_image"),
+                si.sku.label("sku"),
+                si.price.label("price"),
+                si.stock.label("stock"),
+                si.id_feed_run.label("id_last_seen_run"),
+                si.updated_at.label("updated_at"),
             )
-            .join(SupplierFeed, SupplierFeed.id == SupplierItem.id_feed)
-            .join(Supplier, Supplier.id == SupplierFeed.id_supplier)
-            .where(SupplierItem.id_product.in_(ids))
+            .join(sf, sf.id == si.id_feed)
+            .join(s, s.id == sf.id_supplier)
+            .where(si.id_product.in_(product_ids))
         )
-        if only_in_stock:
-            stmt = stmt.where(SupplierItem.stock > 0)
 
-        rows = self.db.execute(stmt).all()
-        out: List[Dict[str, Any]] = []
-        for r in rows:
-            out.append(
-                dict(
-                    id_product=r.id_product,
-                    id_feed=r.id_feed,
-                    sku=r.sku,
-                    price=r.price,
-                    stock=r.stock,
-                    id_last_seen_run=r.id_last_seen_run,
-                    updated_at=r.updated_at,
-                    id_supplier=r.id_supplier,
-                    supplier_name=r.supplier_name,
-                )
-            )
-        return out
+        if only_in_stock:
+            q = q.where(si.stock > 0)
+
+        return [dict(r._mapping) for r in self.db.execute(q).all()]
+
 
 
