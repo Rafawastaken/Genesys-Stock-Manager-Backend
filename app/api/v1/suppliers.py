@@ -4,12 +4,12 @@ from app.core.deps import require_access_token, get_uow
 from app.infra.uow import UoW
 
 from app.schemas.suppliers import SupplierCreate, SupplierOut, SupplierList, SupplierDetailOut, SupplierBundleUpdate
-from app.services.queries.suppliers import list_suppliers as q_list
-from app.services.commands.suppliers import create_supplier as c_create
-from app.services.commands.suppliers import delete_supplier as c_delete
-from app.services.commands.suppliers import update_supplier as c_update_bundle
+from app.domains.procurement.usecases.suppliers.create_supplier import execute as uc_create
+from app.domains.procurement.usecases.suppliers.delete_supplier import execute as uc_delete
+from app.domains.procurement.usecases.suppliers.update_bundle import execute as uc_update
+from app.domains.procurement.usecases.suppliers.get_supplier_detail import execute as uc_q_detail
+from app.domains.procurement.usecases.suppliers.list_suppliers import execute as uc_q_list
 
-from app.services.queries.suppliers import get_supplier_detail as q_detail
 
 router = APIRouter(prefix="/suppliers", tags=["suppliers"])
 
@@ -21,7 +21,7 @@ def list_suppliers(
     uow: UoW = Depends(get_uow),
     _=Depends(require_access_token),
 ):
-    items, total = q_list.handle(uow, search=search, page=page, page_size=page_size)
+    items, total = uc_q_list(uow, search=search, page=page, page_size=page_size)
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 @router.get("/{id_supplier}", response_model=SupplierDetailOut)
@@ -30,7 +30,7 @@ def get_supplier_detail(
     uow: UoW = Depends(get_uow),
     _=Depends(require_access_token),
 ):
-    return q_detail.handle(uow, id_supplier=id_supplier)
+    return uc_q_detail(uow, id_supplier=id_supplier)
 
 @router.post("", response_model=SupplierOut, status_code=status.HTTP_201_CREATED)
 def create_supplier(
@@ -38,7 +38,7 @@ def create_supplier(
     uow: UoW = Depends(get_uow),
     _=Depends(require_access_token),
 ):
-    return c_create.handle(uow, data=payload)
+    return uc_create(uow, data=payload)
 
 @router.put("/{id_supplier}", response_model=SupplierDetailOut)
 def update_supplier_bundle(
@@ -47,7 +47,7 @@ def update_supplier_bundle(
     uow: UoW = Depends(get_uow),
     _=Depends(require_access_token),
 ):
-    return c_update_bundle.handle(uow, id_supplier=id_supplier, payload=payload)
+    return uc_update(uow, id_supplier=id_supplier, payload=payload)
 
 @router.delete("/{id_supplier}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_supplier_endpoint(
@@ -56,7 +56,7 @@ def delete_supplier_endpoint(
     _=Depends(require_access_token),
 ):
     try:
-        c_delete.handle(uow, id_supplier=id_supplier)
+        uc_delete(uow, id_supplier=id_supplier)
     except ValueError:
         raise HTTPException(status_code=404, detail="Supplier not found")
     return  # 204

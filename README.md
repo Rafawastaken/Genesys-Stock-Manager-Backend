@@ -19,8 +19,46 @@ Backend
 │  │  ├─ middleware.py
 │  │  ├─ normalize.py
 │  │  └─ __init__.py
-│  ├─ domain
+│  ├─ domains
+│  │  ├─ auth
+│  │  │  ├─ usecases
+│  │  │  │  ├─ login.py
+│  │  │  │  └─ __init__.py
+│  │  │  └─ __init__.py
+│  │  ├─ catalog
+│  │  │  ├─ repos.py
+│  │  │  ├─ usecases
+│  │  │  │  └─ products
+│  │  │  │     └─ list_products.py
+│  │  │  └─ __init__.py
 │  │  ├─ ingest_engine.py
+│  │  ├─ procurement
+│  │  │  ├─ repos.py
+│  │  │  ├─ usecases
+│  │  │  │  ├─ feeds
+│  │  │  │  │  ├─ delete_supplier_feed.py
+│  │  │  │  │  ├─ get_by_supplier.py
+│  │  │  │  │  ├─ test_feed.py
+│  │  │  │  │  ├─ upsert_supplier_feed.py
+│  │  │  │  │  └─ __init__.py
+│  │  │  │  ├─ mappers
+│  │  │  │  │  ├─ get_by_supplier.py
+│  │  │  │  │  ├─ get_mapper.py
+│  │  │  │  │  ├─ put_mapper.py
+│  │  │  │  │  ├─ validate_mapper.py
+│  │  │  │  │  └─ __init__.py
+│  │  │  │  ├─ runs
+│  │  │  │  │  ├─ ingest_supplier.py
+│  │  │  │  │  └─ __init__.py
+│  │  │  │  ├─ suppliers
+│  │  │  │  │  ├─ create_supplier.py
+│  │  │  │  │  ├─ delete_supplier.py
+│  │  │  │  │  ├─ get_supplier_detail.py
+│  │  │  │  │  ├─ list_suppliers.py
+│  │  │  │  │  ├─ update_bundle.py
+│  │  │  │  │  └─ __init__.py
+│  │  │  │  └─ __init__.py
+│  │  │  └─ __init__.py
 │  │  └─ __init__.py
 │  ├─ external
 │  │  ├─ feed_downloader.py
@@ -64,38 +102,6 @@ Backend
 │  │  ├─ suppliers.py
 │  │  ├─ system.py
 │  │  └─ __init__.py
-│  ├─ services
-│  │  ├─ commands
-│  │  │  ├─ auth
-│  │  │  │  └─ login.py
-│  │  │  ├─ feeds
-│  │  │  │  ├─ delete_supplier_feed.py
-│  │  │  │  ├─ test_feed.py
-│  │  │  │  └─ upsert_supplier_feed.py
-│  │  │  ├─ mappers
-│  │  │  │  ├─ put_mapper.py
-│  │  │  │  └─ validate_mapper.py
-│  │  │  ├─ runs
-│  │  │  │  └─ ingest_supplier.py
-│  │  │  ├─ suppliers
-│  │  │  │  ├─ create_supplier.py
-│  │  │  │  ├─ delete_supplier.py
-│  │  │  │  └─ update_supplier.py
-│  │  │  └─ __init__.py
-│  │  ├─ queries
-│  │  │  ├─ feeds
-│  │  │  │  └─ get_by_supplier.py
-│  │  │  ├─ mappers
-│  │  │  │  ├─ get_by_supplier.py
-│  │  │  │  └─ get_mapper.py
-│  │  │  ├─ products
-│  │  │  │  ├─ list_products.py
-│  │  │  │  └─ __init__.py
-│  │  │  ├─ suppliers
-│  │  │  │  ├─ get_supplier_detail.py
-│  │  │  │  └─ list_suppliers.py
-│  │  │  └─ __init__.py
-│  │  └─ __init__.py
 │  ├─ shared
 │  │  ├─ jwt.py
 │  │  └─ __init__.py
@@ -103,6 +109,7 @@ Backend
 ├─ apps
 │  ├─ api_main.py
 │  └─ __init__.py
+├─ BUGS.md
 ├─ Makefile
 ├─ NOTES.md
 ├─ README.md

@@ -3,7 +3,8 @@ import logging
 from fastapi import APIRouter, Depends, Query
 from app.core.deps import get_uow, require_access_token
 from app.infra.uow import UoW
-from app.services.queries.products import list_products as q_list
+from app.domains.catalog.usecases.products.list_products import execute as uc_q_list_products
+
 
 router = APIRouter(prefix="/products", tags=["products"])
 log = logging.getLogger("gsm.api.products")
@@ -21,11 +22,11 @@ def get_products(
     category: str | None = None,
     has_stock: bool | None = None,
     id_supplier: int | None = None,
-    sort: str = Query("recent", regex="^(recent|name)$"),
+    sort: str = Query("recent", pattern="^(recent|name)$"),
     uow: UoW = Depends(get_uow),
     _=Depends(require_access_token),
 ):
-    return q_list.handle(
+    return uc_q_list_products(
         uow,
         page=page,
         page_size=page_size,

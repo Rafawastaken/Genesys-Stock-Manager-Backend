@@ -1,4 +1,5 @@
-# app/repositories/product_repo.py (partes novas/alteradas)
+# app/repositories/product_repo.py
+
 from __future__ import annotations
 from typing import Optional, Tuple
 from sqlalchemy.orm import Session
@@ -6,8 +7,7 @@ from sqlalchemy import select
 
 from app.models.product import Product
 from app.models.product_meta import ProductMeta
-from app.repositories.brand_repo import BrandRepository
-from app.repositories.category_repo import CategoryRepository
+from app.domains.catalog.repos import BrandRepository, CategoryRepository
 
 class ProductRepository:
     def __init__(self, db: Session):
