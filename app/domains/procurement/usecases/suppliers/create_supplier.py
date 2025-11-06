@@ -47,15 +47,15 @@ def execute(uow: UoW, *, data: SupplierCreate) -> Supplier:
         uow.commit()
         return entity
 
-    except IntegrityError:
+    except IntegrityError as err:
         uow.rollback()
         # violação de unicidade, etc.
-        raise Conflict("Supplier name already exists")
+        raise Conflict("Supplier name already exists") from err
     except (InvalidArgument, Conflict, BadRequest):
         # repropaga AppErrors já mapeados
         uow.rollback()
         raise
-    except Exception:
+    except Exception as err:
         uow.rollback()
         # não expor detalhes internos
-        raise BadRequest("Could not create supplier")
+        raise BadRequest("Could not create supplier") from err

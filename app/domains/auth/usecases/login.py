@@ -18,9 +18,11 @@ def execute(req: LoginRequest) -> LoginResponse:
     client = PrestashopClient()
     try:
         user = client.login(req.email, req.password)
-    except Exception:
+    except Exception as err:
         # Keep it generic to avoid leaking auth details
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+        ) from err
 
     access = create_access_token(
         sub=str(user["id"]),

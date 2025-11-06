@@ -63,7 +63,7 @@ def healthz(request: Request, response: Response, db: SessionDep):
 def readyz(request: Request, response: Response, db: SessionDep):
     checks: dict[str, dict] = {}
 
-    # 1) DB + versão de migração (exemplo com tabela aleatória; ajusta ao teu esquema)
+    # 1) DB + versão de migração
     try:
         db.execute(text("SELECT 1"))
         checks["db"] = {"ok": True}
@@ -71,14 +71,11 @@ def readyz(request: Request, response: Response, db: SessionDep):
         checks["db"] = {"ok": False, "error": str(e)[:200]}
 
     # 2) (Opcional) ping externo – só se a flag estiver ativa
-    external_ok: bool | None = None
     if getattr(settings, "READINESS_CHECK_EXTERNALS", False):
         try:
-            # coloca aqui algo leve: por ex., uma rota /system do Prestashop se tiveres
-            # ou simplesmente um DNS resolve; evita login real
-            external_ok = True
+            # TODO: faz aqui um ping leve (ex.: HEAD a um endpoint interno/externo)
+            checks["external"] = {"ok": True}
         except Exception as e:
-            external_ok = False
             checks["external"] = {"ok": False, "error": str(e)[:200]}
 
     overall_ok = all(c.get("ok", False) for c in checks.values()) if checks else True

@@ -36,7 +36,7 @@ def _empty(x: Any) -> bool:
     return (
         x is None
         or (isinstance(x, str) and x.strip() == "")
-        or (isinstance(x, (list, dict)) and len(x) == 0)
+        or (isinstance(x, list | dict) and len(x) == 0)  # UP038
     )
 
 
@@ -215,7 +215,7 @@ class IngestEngine:
         if cfg.get("uppercase") and isinstance(val, str):
             val = val.upper()
         to_num = cfg.get("to_number")
-        if isinstance(to_num, dict) and isinstance(val, (str, int, float)):
+        if isinstance(to_num, dict) and isinstance(val, str | int | float):  # UP038
             dec = to_num.get("decimal") or "."
             thou = to_num.get("thousands") or ""
             s = str(val)

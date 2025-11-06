@@ -22,6 +22,7 @@ from app.domains.procurement.repos import (
 )
 from app.external.feed_downloader import http_download, parse_rows_json
 from app.infra.uow import UoW
+from contextlib import suppress
 
 log = logging.getLogger("gsm.ingest")
 
@@ -268,17 +269,16 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
 
     except Exception as e:
         # rollback and try to mark run as error
-        try:
+        with suppress(Exception):
             uow.db.rollback()
-        except Exception:
-            pass
+
         try:
             run_repo.finalize_error(id_run, error_msg=f"{type(e).__name__}: {e}")
             uow.commit()
         except Exception:
-            try:
+            # se falhar a finalização, tentar rollback mas sem ruído
+            with suppress(Exception):
                 uow.db.rollback()
-            except Exception:
-                pass
+
         log.exception("[run=%s] ingest failed", id_run)
         return {"ok": False, "id_run": id_run, "error": str(e)}

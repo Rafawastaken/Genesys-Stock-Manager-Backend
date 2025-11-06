@@ -30,12 +30,12 @@ def execute(uow: UoW, *, id_feed: int, payload: FeedMapperUpsert) -> FeedMapperO
             bump_version=payload.bump_version,
         )
         uow.commit()
-    except IntegrityError:
+    except IntegrityError as err:
         uow.rollback()
-        raise Conflict("Could not upsert mapper due to integrity constraints")
-    except Exception:
+        raise Conflict("Could not upsert mapper due to integrity constraints") from err
+    except Exception as err:
         uow.rollback()
-        raise BadRequest("Could not upsert mapper")
+        raise BadRequest("Could not upsert mapper") from err
 
     return FeedMapperOut(
         id=entity.id,

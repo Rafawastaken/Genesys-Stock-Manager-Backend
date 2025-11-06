@@ -11,4 +11,4 @@ async def execute(payload: FeedTestRequest) -> FeedTestResponse:
     try:
         return await downloader.preview(payload)
     except Exception as e:
-        raise BadRequest(f"Could not preview feed: {e}")
+        raise BadRequest(f"Could not preview feed: {e}") from e

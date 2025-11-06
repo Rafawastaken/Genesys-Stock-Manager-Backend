@@ -13,17 +13,17 @@ def execute(uow: UoW, *, id_supplier: int) -> None:
 
     supplier = repo.get(id_supplier)
     if not supplier:
-        raise NotFound("Supplier not found")
+        raise NotFound("Supplier not found") from None
 
     try:
         # repo.delete espera a entidade ORM
         repo.delete(supplier)
         uow.commit()
-    except IntegrityError:
+    except IntegrityError as err:
         uow.rollback()
         # FK em itens/feeds, etc.
-        raise Conflict("Cannot delete supplier due to related records")
-    except Exception:
+        raise Conflict("Cannot delete supplier due to related records") from err
+    except Exception as err:
         uow.rollback()
         # não expomos detalhes internos; middleware mapeia para {"code","detail"}
-        raise BadRequest("Could not delete supplier")
+        raise BadRequest("Could not delete supplier") from err

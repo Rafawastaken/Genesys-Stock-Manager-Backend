@@ -17,7 +17,7 @@ def execute(uow: UoW, *, id_supplier: int) -> None:
     try:
         repo.delete(feed)  # espera o ORM entity
         uow.commit()
-    except IntegrityError:
+    except IntegrityError as err:
         uow.rollback()
         # FK constraints ou regras de integridade
-        raise Conflict("Cannot delete feed due to integrity constraints")
+        raise Conflict("Cannot delete feed due to integrity constraints") from err

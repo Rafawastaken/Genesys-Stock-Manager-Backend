@@ -6,6 +6,7 @@ from __future__ import annotations
 import html
 import json
 import re
+from contextlib import suppress
 from collections.abc import Iterable
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -79,10 +80,8 @@ def to_decimal_str(x: Any, places: int | None = None) -> str | None:
         return None
     if places is not None:
         q = Decimal(1).scaleb(-places)
-        try:
+        with suppress(Exception):  # SIM105
             d = d.quantize(q)
-        except Exception:
-            pass
     return format(d, "f")
 
 
@@ -127,7 +126,7 @@ _SEP_RE = re.compile(r"[,\|\s]+")
 def _coerce_list(val: Any) -> list[str]:
     if val is None:
         return []
-    if isinstance(val, (list, tuple)):
+    if isinstance(val, list | tuple):  # UP038
         return [str(x) for x in val if x is not None]
     if isinstance(val, str):
         s = val.strip()
@@ -163,7 +162,7 @@ def normalize_images(mapped: dict[str, Any]) -> dict[str, Any]:
     def _coerce_list(val: Any) -> list[str]:
         if val is None:
             return []
-        if isinstance(val, (list, tuple)):
+        if isinstance(val, list | tuple):  # UP038
             return [str(x) for x in val if x is not None]
         if isinstance(val, str):
             s = val.strip()
