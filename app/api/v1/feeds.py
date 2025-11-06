@@ -31,8 +31,6 @@ def get_supplier_feed(
     e = uc_get_feed_by_supplier(uow, id_supplier=id_supplier)  # levanta NotFound se não existir
     return _to_out(e)
 
-
-
 @router.put("/supplier/{id_supplier}", response_model=SupplierFeedOut, dependencies=[Depends(require_access_token)])
 def upsert_supplier_feed(
     id_supplier: int,

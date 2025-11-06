@@ -1,3 +1,4 @@
+# app/repositories/product_repo.py
 from __future__ import annotations
 from typing import Optional, Tuple
 from sqlalchemy.orm import Session
@@ -12,44 +13,32 @@ class ProductRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    # --- match / fetch -------------------------------------------------
+    def get(self, id_product: int) -> Optional[Product]:
+        return self.db.get(Product, id_product)
+
     def get_by_gtin(self, gtin: str) -> Optional[Product]:
-        if not gtin:
-            return None
+        if not gtin: return None
         return self.db.scalar(select(Product).where(Product.gtin == gtin))
 
     def get_by_brand_mpn(self, id_brand: int, partnumber: str) -> Optional[Product]:
-        if not id_brand or not partnumber:
-            return None
+        if not id_brand or not partnumber: return None
         stmt = select(Product).where(Product.id_brand == id_brand, Product.partnumber == partnumber)
         return self.db.scalar(stmt)
 
     def get_or_create(self, *, gtin: Optional[str], partnumber: Optional[str], brand_name: Optional[str]) -> Product:
-        """
-        Matching priority:
-          1) GTIN (wins)
-          2) Brand + MPN
-          3) Create if at least one key exists (GTIN or Brand+MPN)
-        """
-        # 1) GTIN
         if gtin:
             p = self.get_by_gtin(gtin)
-            if p:
-                return p
+            if p: return p
 
-        # 2) Brand + MPN
         id_brand = None
         if brand_name:
             b_repo = BrandRepository(self.db)
-            brand = b_repo.get_or_create(brand_name)
-            id_brand = brand.id
+            id_brand = b_repo.get_or_create(brand_name).id
 
         if id_brand and partnumber:
             p = self.get_by_brand_mpn(id_brand, partnumber)
-            if p:
-                return p
+            if p: return p
 
-        # 3) Create only if we have a valid key
         if not gtin and not (id_brand and partnumber):
             raise InvalidArgument("Missing product key (gtin or brand+mpn)")
 
@@ -58,56 +47,33 @@ class ProductRepository:
         self.db.flush()
         return p
 
-    # --- fill canonicals if empty -------------------------------------
     def fill_canonicals_if_empty(self, id_product: int, **fields):
-        """Fill canonical product fields only if they are empty/null."""
         p = self.db.get(Product, id_product)
-        if not p:
-            return
+        if not p: return
         changed = False
         for k, v in fields.items():
-            if v in (None, ""):
-                continue
+            if v in (None, ""): continue
             if getattr(p, k, None) in (None, "", 0):
-                setattr(p, k, v)
-                changed = True
+                setattr(p, k, v); changed = True
         if changed:
-            self.db.add(p)
-            self.db.flush()
+            self.db.add(p); self.db.flush()
 
-    # --- brand/category if empty --------------------------------------
     def fill_brand_category_if_empty(self, id_product: int, *, brand_name: Optional[str], category_name: Optional[str]):
-        """Attach brand/category if product lacks them, creating entities if needed."""
         p = self.db.get(Product, id_product)
-        if not p:
-            return
+        if not p: return
         changed = False
-
         if brand_name and not p.id_brand:
-            b = BrandRepository(self.db).get_or_create(brand_name)
-            p.id_brand = b.id
-            changed = True
-
+            p.id_brand = BrandRepository(self.db).get_or_create(brand_name).id; changed = True
         if category_name and not p.id_category:
-            c = CategoryRepository(self.db).get_or_create(category_name)
-            p.id_category = c.id
-            changed = True
-
+            p.id_category = CategoryRepository(self.db).get_or_create(category_name).id; changed = True
         if changed:
-            self.db.add(p)
-            self.db.flush()
+            self.db.add(p); self.db.flush()
 
-    # --- meta (insert-if-missing; don't overwrite) --------------------
     def add_meta_if_missing(self, id_product: int, *, name: str, value: str) -> tuple[bool, bool]:
-        """
-        Returns (inserted, conflict):
-          - inserted: True if a new meta row was created
-          - conflict: True if an existing row had a different value (we do not overwrite)
-        """
-        stmt = select(ProductMeta).where(ProductMeta.id_product == id_product, ProductMeta.name == name)
-        row = self.db.scalar(stmt)
+        row = self.db.scalar(select(ProductMeta).where(ProductMeta.id_product == id_product, ProductMeta.name == name))
         if row is None:
             self.db.add(ProductMeta(id_product=id_product, name=name, value=value))
+            # flush opcional se precisares do id
             return True, False
         else:
             return (False, (row.value or "") != (value or ""))

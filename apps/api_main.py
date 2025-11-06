@@ -6,6 +6,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from app.core.logging import setup_logging
 from app.core.middleware import RequestContextMiddleware
+from app.core.http_errors import init_error_handlers
 
 # Routes
 from app.api.v1.system import router as system_router
@@ -20,7 +21,11 @@ from app.api.v1.products import router as products_router
 setup_logging()
 
 app = FastAPI(title="Genesys API Backend", version="2.0.0")
+
 app.add_middleware(RequestContextMiddleware)
+
+init_error_handlers(app)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r".*",   # aceita qualquer origem

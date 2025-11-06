@@ -1,14 +1,15 @@
-# app/repositories/supplier_item_repo.py
 from __future__ import annotations
-from typing import Optional, Tuple, Iterable, Any, Dict, List
+from typing import Optional, Tuple, Iterable, Any, Dict, List, Sequence
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 import hashlib
+
 from app.models.supplier import Supplier
 from app.models.supplier_feed import SupplierFeed
 from app.models.supplier_item import SupplierItem
+from app.core.errors import InvalidArgument
 
-def _mk_fp(*parts: str) -> str:
+def _mk_fp(*parts: Any) -> str:
     raw = "|".join("" if p is None else str(p) for p in parts)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
@@ -28,7 +29,11 @@ class SupplierItemRepository:
         partnumber: Optional[str],
         id_feed_run: int,
     ) -> Tuple[SupplierItem, bool, bool, Optional[str], Optional[int]]:
-        stmt = select(SupplierItem).where(SupplierItem.id_feed == id_feed, SupplierItem.sku == sku)
+        sku_norm = (sku or "").strip()
+        if not sku_norm:
+            raise InvalidArgument("SKU is empty")
+
+        stmt = select(SupplierItem).where(SupplierItem.id_feed == id_feed, SupplierItem.sku == sku_norm)
         item = self.db.scalar(stmt)
 
         created = False
@@ -36,13 +41,13 @@ class SupplierItemRepository:
         old_price: Optional[str] = None
         old_stock: Optional[int] = None
 
-        new_fp = _mk_fp(id_feed, id_product, sku, gtin, partnumber, price, stock)
+        new_fp = _mk_fp(id_feed, id_product, sku_norm, gtin, partnumber, price, stock)
 
         if item is None:
             item = SupplierItem(
                 id_feed=id_feed,
                 id_product=id_product,
-                sku=sku,
+                sku=sku_norm,
                 gtin=gtin,
                 partnumber=partnumber,
                 price=price,
@@ -74,8 +79,7 @@ class SupplierItemRepository:
         self.db.flush()
         return item, created, changed, old_price, old_stock
 
-
-    def list_offers_for_product_ids(self, product_ids: list[int], only_in_stock: bool = False):
+    def list_offers_for_product_ids(self, product_ids: Sequence[int], only_in_stock: bool = False) -> List[Dict[str, Any]]:
         si = SupplierItem
         sf = SupplierFeed
         s  = Supplier
@@ -95,13 +99,10 @@ class SupplierItemRepository:
             )
             .join(sf, sf.id == si.id_feed)
             .join(s, s.id == sf.id_supplier)
-            .where(si.id_product.in_(product_ids))
+            .where(si.id_product.in_(list(product_ids)))
         )
 
         if only_in_stock:
             q = q.where(si.stock > 0)
 
         return [dict(r._mapping) for r in self.db.execute(q).all()]
-
-
-

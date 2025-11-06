@@ -8,8 +8,10 @@ from typing import List, Literal
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True)
     # General
-    TIMEZONE: str = "Europe/Lisbon"
     # App
+    APP_NAME: str = "genesys-backend"
+    APP_VERSION: str = "0.1.0"
+    TIMEZONE: str = "Europe/Lisbon"
     APP_ENV: Literal["dev", "prod"] = "dev"
     APP_PORT:int = 8000
     # Logging

@@ -31,7 +31,28 @@ def _charset_from_content_type(ct: Optional[str]) -> Optional[str]:
             return part.split("=", 1)[1].strip()
     return None
 
-# --- Back-compat helpers para serviços que usam funções soltas ---
+
+def _infer_format(format_hint: Optional[str], content_type: Optional[str], sample: bytes) -> str:
+    """
+    Decide 'json' vs 'csv' quando o cliente não define explicitamente.
+    """
+    if format_hint:
+        return format_hint.lower()
+
+    ct = (content_type or "").lower()
+    if "application/json" in ct or "ld+json" in ct or "json" in ct:
+        return "json"
+    if "text/csv" in ct:
+        return "csv"
+
+    # Heurística rápida pelo conteúdo
+    s = sample.lstrip()[:1]
+    if s in (b"{", b"["):
+        return "json"
+    return "csv"
+
+
+# --- Back-compat helpers para serviços antigos -----------------------------
 
 async def http_download(
     url: str,
@@ -59,21 +80,36 @@ async def http_download(
 
 def parse_rows_json(raw: bytes) -> List[dict]:
     """
-    Extrai linhas (dicts) de JSON (lista, {data|items|results|products|rows|list}, ou objeto único).
+    Extrai linhas (dicts) de JSON (lista, {data|items|results|products|rows|list}, objeto único),
+    ou NDJSON (uma linha JSON por linha).
     """
+    # 1) JSON tradicional
     try:
         obj = json.loads(raw.decode(errors="ignore"))
+        if isinstance(obj, list):
+            return [x for x in obj if isinstance(x, dict)]
+        if isinstance(obj, dict):
+            for key in ("data", "items", "results", "products", "rows", "list"):
+                v = obj.get(key)
+                if isinstance(v, list):
+                    return [x for x in v if isinstance(x, dict)]
+            return [obj]
     except Exception:
-        return []
-    if isinstance(obj, list):
-        return [x for x in obj if isinstance(x, dict)]
-    if isinstance(obj, dict):
-        for key in ("data", "items", "results", "products", "rows", "list"):
-            v = obj.get(key)
-            if isinstance(v, list):
-                return [x for x in v if isinstance(x, dict)]
-        return [obj]
-    return []
+        pass
+
+    # 2) NDJSON (cada linha um JSON)
+    out: List[dict] = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            val = json.loads(line.decode(errors="ignore"))
+            if isinstance(val, dict):
+                out.append(val)
+        except Exception:
+            continue
+    return out
 
 
 def parse_rows_csv(
@@ -85,17 +121,27 @@ def parse_rows_csv(
     """
     Converte CSV → lista de dicts (usando 1ª linha como cabeçalho).
     """
-    # tenta guessing de encoding (mesma lógica do preview)
     text = FeedDownloader()._decode_best(raw, ct="text/csv; charset=utf-8")
+    # Remove BOM se existir
+    if text.startswith("\ufeff"):
+        text = text.lstrip("\ufeff")
+
     sio = io.StringIO(text)
-    reader = csv.DictReader(sio, delimiter=(delimiter or ","))
+    reader = csv.DictReader(sio, delimiter=(delimiter or ","), restkey="_extra", restval="")
     out: List[dict] = []
     for i, row in enumerate(reader, 1):
-        out.append({k: (v if v is not None else "") for k, v in row.items()})
+        clean: dict[str, Any] = {}
+        for k, v in row.items():
+            if k is None:
+                continue
+            key = str(k).strip() or f"col_{len(clean) + 1}"
+            if isinstance(v, list):
+                v = ",".join("" if x is None else str(x) for x in v)
+            clean[key] = "" if v is None else v
+        out.append(clean)
         if max_rows and i >= max_rows:
             break
     return out
-
 
 
 class FeedDownloader:
@@ -118,7 +164,7 @@ class FeedDownloader:
                 bytes_read=0,
                 preview_type=None,
                 rows_preview=[],
-                error="FTP/FTPS ainda não suportado por este downloader",
+                error="FTP/FTPS is not supported by this downloader",
             )
 
         status_code, ct, raw, err_text = await self._http_get(
@@ -130,7 +176,7 @@ class FeedDownloader:
             timeout_s=self.timeout_s,
         )
 
-        # se falhou HTTP, devolve erro + pequeno corpo para debug
+        # falha HTTP → devolve erro + pequeno corpo para debug
         if status_code < 200 or status_code >= 300:
             return FeedTestResponse(
                 ok=False,
@@ -156,7 +202,9 @@ class FeedDownloader:
                 error=None,
             )
 
-        fmt = (req.format or "").lower()
+        # decidir formato
+        fmt = _infer_format(req.format, ct, sample)
+
         if fmt == "json":
             rows = self._preview_json(sample)
             rows = rows[: (req.max_rows or 20)]
@@ -200,6 +248,7 @@ class FeedDownloader:
     ) -> Tuple[int, Optional[str], bytes, Optional[str]]:
         # headers defensivos
         h = dict(headers or {})
+
         # auth
         httpx_auth = None
         if (auth_kind or "").lower() == "basic" and isinstance(auth, dict):
@@ -211,6 +260,12 @@ class FeedDownloader:
             token = auth.get("token") or auth.get("access_token")
             if token:
                 h.setdefault("Authorization", f"Bearer {token}")
+        elif (auth_kind or "").lower() in {"header", "apikey"} and isinstance(auth, dict):
+            # Ex.: {"header": "X-API-Key", "value": "..."} ou {"name":"X-Token","value":"..."}
+            key = auth.get("header") or auth.get("name")
+            val = auth.get("value") or auth.get("token")
+            if key and val:
+                h.setdefault(str(key), str(val))
 
         # user-agent mínimo
         h.setdefault("Accept", "application/json,text/csv;q=0.9,*/*;q=0.1")
@@ -220,7 +275,6 @@ class FeedDownloader:
             async with httpx.AsyncClient(timeout=timeout_s) as cli:
                 resp = await cli.get(url, headers=h, params=params, auth=httpx_auth)
                 ct = resp.headers.get("content-type")
-                # err_text: devolve um pequeno corpo textual se 4xx/5xx
                 err_text = None
                 if resp.status_code >= 400:
                     err_text = self._decode_best(resp.content[:4096], ct)
@@ -246,60 +300,58 @@ class FeedDownloader:
         return raw.decode("utf-8", errors="ignore")
 
     def _preview_json(self, raw_sample: bytes) -> List[dict]:
-        # tenta JSON direto; se falhar, tenta como texto -> json
+        # tenta JSON tradicional; se falhar, tenta NDJSON
         try:
             obj = json.loads(raw_sample.decode(errors="ignore"))
+            if isinstance(obj, list):
+                return [x for x in obj if isinstance(x, dict)]
+            if isinstance(obj, dict):
+                for key in ("data", "items", "results", "products", "rows", "list"):
+                    v = obj.get(key)
+                    if isinstance(v, list):
+                        return [x for x in v if isinstance(x, dict)]
+                return [obj]
         except Exception:
-            return []
-        # extrair items padrões
-        if isinstance(obj, list):
-            return [x for x in obj if isinstance(x, dict)]
-        if isinstance(obj, dict):
-            for key in ("data", "items", "results", "products", "rows", "list"):
-                v = obj.get(key)
-                if isinstance(v, list):
-                    return [x for x in v if isinstance(x, dict)]
-            return [obj]
-        return []
+            pass
+
+        # NDJSON (uma linha JSON por linha)
+        out: List[dict] = []
+        for line in raw_sample.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                val = json.loads(line.decode(errors="ignore"))
+                if isinstance(val, dict):
+                    out.append(val)
+            except Exception:
+                continue
+        return out
 
     def _preview_csv(self, raw_sample: bytes, *, delimiter: str = ",", max_rows: int = 20) -> List[dict]:
         text = self._decode_best(raw_sample, ct="text/csv; charset=utf-8")
+        if text.startswith("\ufeff"):
+            text = text.lstrip("\ufeff")
         sio = io.StringIO(text)
 
-        # restkey captura colunas a mais, evitando chave None
         reader = csv.DictReader(
             sio,
             delimiter=(delimiter or ","),
             restkey="_extra",
-            restval="",           # campos em falta ficam vazios
+            restval="",
         )
 
         out: List[dict] = []
         for i, row in enumerate(reader, 1):
             clean: dict[str, Any] = {}
-
             for k, v in row.items():
-                # ignora chaves None (não deverá acontecer com restkey, mas por segurança)
                 if k is None:
                     continue
-
-                # força chave para string; substitui vazias por um nome sintético
                 key = str(k).strip() or f"col_{len(clean) + 1}"
-
-                # se vier uma lista (colunas extra via restkey), junta numa string
                 if isinstance(v, list):
                     v = ",".join("" if x is None else str(x) for x in v)
-
-                # normaliza valores None para string vazia (ou mantém como está se preferires)
                 clean[key] = "" if v is None else v
-
             out.append(clean)
             if i >= max_rows:
                 break
-
-            # opcional: se a linha toda vier vazia, podes saltar:
-            # if not any(str(val).strip() for val in clean.values()):
-            #     continue
-
         return out
-

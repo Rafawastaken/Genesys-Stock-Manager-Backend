@@ -1,11 +1,11 @@
-# app/repositories/mapper_repo.py
 from __future__ import annotations
 import json
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from app.models.feed_mapper import FeedMapper
-from app.models.supplier_feed import SupplierFeed  # 👈 importar para o join
+from app.models.supplier_feed import SupplierFeed
+from app.core.errors import InvalidArgument
 
 class MapperRepository:
     def __init__(self, db: Session):
@@ -18,7 +18,6 @@ class MapperRepository:
         return self.db.scalar(select(FeedMapper).where(FeedMapper.id_feed == id_feed))
 
     def get_by_supplier(self, id_supplier: int) -> Optional[FeedMapper]:
-        # SupplierFeed.id_supplier é unique → devolve no máx. 1 Feed → 1 Mapper
         stmt = (
             select(FeedMapper)
             .join(SupplierFeed, FeedMapper.id_feed == SupplierFeed.id)
@@ -35,6 +34,7 @@ class MapperRepository:
         self.db.flush()
         return m
 
+    # Conveniência: devolve SEMPRE um dict; em erro de parsing devolve {}.
     def get_profile(self, id_feed: int) -> Dict[str, Any]:
         m = self.get_or_create_by_feed(id_feed)
         try:
@@ -43,6 +43,9 @@ class MapperRepository:
             return {}
 
     def upsert_profile(self, id_feed: int, profile: Dict[str, Any], *, bump_version: bool = True) -> FeedMapper:
+        if not isinstance(profile, dict):
+            raise InvalidArgument("Mapper profile must be an object (dict)")
+
         m = self.get_by_feed(id_feed)
         creating = m is None
         if creating:

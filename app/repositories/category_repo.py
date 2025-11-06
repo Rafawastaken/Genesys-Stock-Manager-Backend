@@ -3,13 +3,21 @@ from __future__ import annotations
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-
-from app.core.errors import InvalidArgument
 from app.models.category import Category
+from app.core.errors import InvalidArgument, NotFound
 
 class CategoryRepository:
     def __init__(self, db: Session):
         self.db = db
+
+    def get(self, id_category: int) -> Optional[Category]:
+        return self.db.get(Category, id_category)
+
+    def get_required(self, id_category: int) -> Category:
+        c = self.get(id_category)
+        if not c:
+            raise NotFound("Category not found")
+        return c
 
     def get_by_name(self, name: str) -> Optional[Category]:
         if not name:
@@ -25,5 +33,5 @@ class CategoryRepository:
             return c
         c = Category(name=n)
         self.db.add(c)
-        self.db.flush()
+        self.db.flush()  # sem commit
         return c

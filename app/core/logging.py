@@ -23,6 +23,14 @@ class RequestIdFilter(logging.Filter):
         record.request_id = rid or "-"
         return True
 
+def get_request_id() -> Optional[str]:
+    """Devolve o request id atual (ou None se não houver)."""
+    return _request_id_ctx.get()
+
+def get_request_id_or(default: str = "-") -> str:
+    rid = _request_id_ctx.get()
+    return rid if rid else default
+
 
 def set_request_id(rid: Optional[str]) -> None:
     _request_id_ctx.set(rid)

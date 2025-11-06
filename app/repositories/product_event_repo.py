@@ -1,4 +1,3 @@
-# app/repositories/product_event_repo.py
 from __future__ import annotations
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -22,6 +21,7 @@ class ProductEventRepository:
         changed: bool,
         id_feed_run: int,
     ) -> int:
+        """Regista evento apenas se houve criação ou alteração."""
         if not (created or changed):
             return 0
 
@@ -35,9 +35,11 @@ class ProductEventRepository:
             id_feed_run=id_feed_run,
             reason=reason,
         ))
+        # sem flush/commit aqui
         return 1
 
     def mark_eol_for_unseen_items(self, *, id_feed: int, id_supplier: int, id_feed_run: int) -> int:
+        """Marca EOL para itens desse feed não vistos neste run."""
         unseen = self.db.scalars(
             select(SupplierItem).where(
                 SupplierItem.id_feed == id_feed,

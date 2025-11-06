@@ -18,7 +18,7 @@ from app.domains.procurement.repos import (
     SupplierFeedRepository,
 )
 from app.domains.catalog.repos import ProductRepository
-from app.domains.ingest_engine import IngestEngine
+from app.domains.mapping.engine import IngestEngine
 from app.core.normalize import normalize_images
 from app.external.feed_downloader import http_download, parse_rows_json
 from app.core.errors import NotFound, InvalidArgument  # << NOVO

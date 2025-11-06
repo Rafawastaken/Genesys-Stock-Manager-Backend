@@ -2,9 +2,8 @@
 from __future__ import annotations
 from typing import Optional, Callable
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from app.models.supplier_feed import SupplierFeed
-
 
 class SupplierFeedRepository:
     def __init__(self, db: Session):
@@ -17,21 +16,17 @@ class SupplierFeedRepository:
         return self.db.scalar(select(SupplierFeed).where(SupplierFeed.id_supplier == id_supplier))
 
     def upsert_for_supplier(self, id_supplier: int, mutate: Callable[[SupplierFeed], None]) -> SupplierFeed:
-        entity = self.get_by_supplier(id_supplier)
-        creating = entity is None
-        if creating:
-            entity = SupplierFeed(id_supplier=id_supplier)
-            self.db.add(entity)
+        e = self.get_by_supplier(id_supplier)
+        if not e:
+            e = SupplierFeed(id_supplier=id_supplier)
+            self.db.add(e)
+            self.db.flush()  # para ter id
+        mutate(e)
+        self.db.add(e)
+        self.db.flush()
+        return e
 
-        mutate(entity)
-        self.db.flush()          # 👈 sem commit
-        return entity
-
-    def delete_by_supplier(self, id_supplier: int) -> bool:
-        entity = self.get_by_supplier(id_supplier)
-        if not entity:
-            return False
-        self.db.delete(entity)
-        self.db.flush()          # 👈 sem commit
-        return True
-
+    def delete_by_supplier(self, id_supplier: int) -> int:
+        res = self.db.execute(delete(SupplierFeed).where(SupplierFeed.id_supplier == id_supplier))
+        # não faz commit aqui
+        return res.rowcount or 0

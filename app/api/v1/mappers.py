@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from app.core.deps import get_uow, require_access_token
 from app.infra.uow import UoW
@@ -13,7 +13,7 @@ from app.domains.procurement.usecases.mappers.validate_mapper import execute as 
 from app.domains.procurement.usecases.mappers.get_by_supplier import execute as uc_q_mapper_by_supplier
 from app.domains.procurement.usecases.mappers.get_mapper import execute as uc_get_mapper
 
-from app.domains.ingest_engine import supported_ops_for_api
+from app.domains.mapping.engine import supported_ops_for_api
 
 router = APIRouter(prefix="/mappers", tags=["mappers"])
 log = logging.getLogger("gsm.api.mappers")
