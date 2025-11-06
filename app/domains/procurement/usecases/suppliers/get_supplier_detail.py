@@ -1,12 +1,13 @@
+# app/domains/procurement/usecases/suppliers/get_supplier_detail.py
 from __future__ import annotations
 import json
-from fastapi import HTTPException
 
 from app.infra.uow import UoW
 from app.domains.procurement.repos import SupplierRepository, SupplierFeedRepository, MapperRepository
 from app.schemas.suppliers import SupplierDetailOut, SupplierOut
 from app.schemas.feeds import SupplierFeedOut
 from app.schemas.mappers import FeedMapperOut
+from app.core.errors import NotFound  # << usar AppError
 
 def _supplier_to_out(s) -> SupplierOut:
     return SupplierOut(
@@ -33,7 +34,7 @@ def _feed_to_out(f) -> SupplierFeedOut | None:
         "format": f.format,
         "url": f.url,
         "active": f.active,
-        "csv_delimiter": f.csv_delimiter,
+        "csv_delimiter": f.csv_delimiter or ",",  # default consistente
         "headers_json": getattr(f, "headers_json", None),
         "params_json": getattr(f, "params_json", None),
         "extra_json": getattr(f, "extra_json", None),
@@ -47,10 +48,14 @@ def _feed_to_out(f) -> SupplierFeedOut | None:
 def _mapper_to_out(m) -> FeedMapperOut | None:
     if not m:
         return None
+    try:
+        profile = json.loads(m.profile_json) if getattr(m, "profile_json", None) else {}
+    except Exception:
+        profile = {}
     return FeedMapperOut(
         id=m.id,
         id_feed=m.id_feed,
-        profile=json.loads(m.profile_json) if getattr(m, "profile_json", None) else {},
+        profile=profile,
         version=m.version or 1,
         created_at=m.created_at,
         updated_at=m.updated_at,
@@ -63,7 +68,7 @@ def execute(uow: UoW, *, id_supplier: int) -> SupplierDetailOut:
 
     s = sup_repo.get(id_supplier)
     if not s:
-        raise HTTPException(status_code=404, detail="Supplier not found")
+        raise NotFound("Supplier not found")  # << em vez de HTTPException
 
     f = feed_repo.get_by_supplier(id_supplier)
     m = map_repo.get_by_feed(f.id) if f else None

@@ -1,22 +1,25 @@
 # app/domains/procurement/usecases/mappers/validate_mapper.py
-# This module provides functionality to validate mapping profiles for procurement feeds.
+# Validate mapping profiles for procurement feeds (no exceptions; returns a structured result).
 
 from __future__ import annotations
 import json
 from typing import Optional, Dict, Any, List
+
 from app.infra.uow import UoW
+from app.domains.procurement.repos import MapperRepository
 from app.schemas.mappers import MapperValidateIn, MapperValidateOut
+
 
 def _validate(profile: Dict[str, Any] | None, headers: Optional[List[str]]) -> Dict[str, Any]:
     """
-    Light validation: ensure 'fields' maps the required targets (gtin, price, stock).
-    If headers are provided, verify that each field's 'source' exists in headers.
+    Light validation: ensure 'fields' maps required targets (gtin, price, stock).
+    If headers are provided, verify each field's 'source' exists in headers.
     """
     profile = profile or {}
     fields = profile.get("fields") or {}
     required = {"gtin", "price", "stock"}
 
-    # normalize to dict {target: {source: "..."}}, even if it came as a list
+    # Normalize to dict {target: {source: "..."}}, even if it came as a list.
     if isinstance(fields, list):
         norm = {}
         for row in fields:
@@ -47,12 +50,15 @@ def _validate(profile: Dict[str, Any] | None, headers: Optional[List[str]]) -> D
         "headers_checked": headers_checked,
     }
 
+
 def execute(uow: UoW, *, id_feed: int, payload: MapperValidateIn) -> MapperValidateOut:
     profile: Optional[Dict[str, Any]] = payload.profile
+
     if profile is None:
-        # Mantém a semântica original: usar o agregador do UoW
-        e = uow.mappers.get_by_feed(id_feed)
-        if not e or not e.profile_json:
+        # No payload profile → fetch from repository (no UoW aggregator).
+        repo = MapperRepository(uow.db)
+        e = repo.get_by_feed(id_feed)
+        if not e or not getattr(e, "profile_json", None):
             return MapperValidateOut(
                 ok=False,
                 errors=[{"code": "not_found", "msg": "Mapper not found for this feed"}],

@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+
+from app.core.errors import InvalidArgument
 from app.models.category import Category
 
 class CategoryRepository:
@@ -17,7 +19,7 @@ class CategoryRepository:
     def get_or_create(self, name: str) -> Category:
         n = (name or "").strip()
         if not n:
-            raise ValueError("category name empty")
+            raise InvalidArgument("Category name is empty")
         c = self.get_by_name(n)
         if c:
             return c

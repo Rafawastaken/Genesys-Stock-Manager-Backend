@@ -23,20 +23,14 @@ log = logging.getLogger("gsm.api.mappers")
 # -------------------------------
 @router.get("/feed/{id_feed}")
 def get_mapper(id_feed: int, uow: UoW = Depends(get_uow), _=Depends(require_access_token)):
-    try:
-        return uc_get_mapper(uow, id_feed=id_feed)
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Mapper not found")
+    return uc_get_mapper(uow, id_feed=id_feed)
 
 # -------------------------------
 # GET /mappers/supplier/{id_supplier}
 # -------------------------------
 @router.get("/supplier/{id_supplier}")
 def get_mapper_by_supplier(id_supplier: int, uow: UoW = Depends(get_uow), _=Depends(require_access_token)):
-    try:
-        return uc_q_mapper_by_supplier(uow, id_supplier=id_supplier)
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Mapper not found")
+    return uc_q_mapper_by_supplier(uow, id_supplier=id_supplier)
 
 # -------------------------------
 # POST /mappers/feed/{id_feed}/validate

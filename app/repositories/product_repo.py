@@ -1,5 +1,3 @@
-# app/repositories/product_repo.py
-
 from __future__ import annotations
 from typing import Optional, Tuple
 from sqlalchemy.orm import Session
@@ -8,12 +6,13 @@ from sqlalchemy import select
 from app.models.product import Product
 from app.models.product_meta import ProductMeta
 from app.domains.catalog.repos import BrandRepository, CategoryRepository
+from app.core.errors import InvalidArgument
 
 class ProductRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    # --- match/criação ---
+    # --- match / fetch -------------------------------------------------
     def get_by_gtin(self, gtin: str) -> Optional[Product]:
         if not gtin:
             return None
@@ -26,7 +25,13 @@ class ProductRepository:
         return self.db.scalar(stmt)
 
     def get_or_create(self, *, gtin: Optional[str], partnumber: Optional[str], brand_name: Optional[str]) -> Product:
-        # 1) GTIN ganha sempre
+        """
+        Matching priority:
+          1) GTIN (wins)
+          2) Brand + MPN
+          3) Create if at least one key exists (GTIN or Brand+MPN)
+        """
+        # 1) GTIN
         if gtin:
             p = self.get_by_gtin(gtin)
             if p:
@@ -44,17 +49,18 @@ class ProductRepository:
             if p:
                 return p
 
-        # 3) Criar novo se houver pelo menos uma chave
+        # 3) Create only if we have a valid key
         if not gtin and not (id_brand and partnumber):
-            raise ValueError("no product key (gtin or brand+mpn)")
+            raise InvalidArgument("Missing product key (gtin or brand+mpn)")
 
         p = Product(gtin=gtin, id_brand=id_brand, partnumber=partnumber)
         self.db.add(p)
         self.db.flush()
         return p
 
-    # --- preencher canonicals se vazias ---
+    # --- fill canonicals if empty -------------------------------------
     def fill_canonicals_if_empty(self, id_product: int, **fields):
+        """Fill canonical product fields only if they are empty/null."""
         p = self.db.get(Product, id_product)
         if not p:
             return
@@ -69,8 +75,9 @@ class ProductRepository:
             self.db.add(p)
             self.db.flush()
 
-    # --- brand/category se vazios ---
+    # --- brand/category if empty --------------------------------------
     def fill_brand_category_if_empty(self, id_product: int, *, brand_name: Optional[str], category_name: Optional[str]):
+        """Attach brand/category if product lacks them, creating entities if needed."""
         p = self.db.get(Product, id_product)
         if not p:
             return
@@ -90,8 +97,13 @@ class ProductRepository:
             self.db.add(p)
             self.db.flush()
 
-    # --- meta (sem tocar em valores existentes) ---
+    # --- meta (insert-if-missing; don't overwrite) --------------------
     def add_meta_if_missing(self, id_product: int, *, name: str, value: str) -> tuple[bool, bool]:
+        """
+        Returns (inserted, conflict):
+          - inserted: True if a new meta row was created
+          - conflict: True if an existing row had a different value (we do not overwrite)
+        """
         stmt = select(ProductMeta).where(ProductMeta.id_product == id_product, ProductMeta.name == name)
         row = self.db.scalar(stmt)
         if row is None:

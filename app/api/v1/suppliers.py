@@ -55,8 +55,4 @@ def delete_supplier_endpoint(
     uow: UoW = Depends(get_uow),
     _=Depends(require_access_token),
 ):
-    try:
-        uc_delete(uow, id_supplier=id_supplier)
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Supplier not found")
-    return  # 204
+    uc_delete(uow, id_supplier=id_supplier)

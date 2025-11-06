@@ -7,7 +7,6 @@ import io
 import json
 import logging
 
-from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 
 from app.infra.uow import UoW
@@ -22,6 +21,7 @@ from app.domains.catalog.repos import ProductRepository
 from app.domains.ingest_engine import IngestEngine
 from app.core.normalize import normalize_images
 from app.external.feed_downloader import http_download, parse_rows_json
+from app.core.errors import NotFound, InvalidArgument  # << NOVO
 
 log = logging.getLogger("gsm.ingest")
 
@@ -74,7 +74,8 @@ async def execute(uow: UoW, *, id_supplier: int, limit: Optional[int] = None) ->
     # validate supplier feed
     feed = feed_repo.get_by_supplier(id_supplier)
     if not feed or not feed.active:
-        raise HTTPException(status_code=404, detail="Feed not found for supplier")
+        # era HTTPException(404) → agora AppError tratado pelo middleware
+        raise NotFound("Feed not found for supplier")
 
     # start run
     run = run_repo.start(id_feed=feed.id)
@@ -134,7 +135,8 @@ async def execute(uow: UoW, *, id_supplier: int, limit: Optional[int] = None) ->
             # product: get_or_create by GTIN; fallback Brand+MPN
             try:
                 p = prod_repo.get_or_create(gtin=gtin, partnumber=pn, brand_name=brand_name)
-            except ValueError:
+            except InvalidArgument:
+                # era ValueError → agora InvalidArgument do nosso domínio
                 bad += 1
                 log.warning("[run=%s] row#%s skipped (no product key)", id_run, idx)
                 continue

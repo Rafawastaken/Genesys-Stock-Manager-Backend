@@ -1,5 +1,7 @@
 from __future__ import annotations
 import json
+
+from app.core.errors import NotFound
 from app.infra.uow import UoW
 from app.domains.procurement.repos import MapperRepository
 from app.schemas.mappers import FeedMapperOut
@@ -8,7 +10,7 @@ def execute(uow: UoW, *, id_feed: int) -> FeedMapperOut:
     repo = MapperRepository(uow.db)
     e = repo.get_by_feed(id_feed)
     if not e:
-        raise ValueError("MAPPER_NOT_FOUND")
+        raise NotFound("Mapper not found")
     try:
         profile = json.loads(e.profile_json) if getattr(e, "profile_json", None) else {}
     except Exception:

@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+
+from app.core.errors import InvalidArgument
 from app.models.brand import Brand
 
 class BrandRepository:
@@ -17,7 +19,7 @@ class BrandRepository:
     def get_or_create(self, name: str) -> Brand:
         n = (name or "").strip()
         if not n:
-            raise ValueError("brand name empty")
+            raise InvalidArgument("Brand name is empty")
         b = self.get_by_name(n)
         if b:
             return b

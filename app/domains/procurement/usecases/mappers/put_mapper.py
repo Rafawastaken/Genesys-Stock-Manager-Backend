@@ -1,14 +1,24 @@
 # app/domains/procurement/usecases/mappers/put_mapper.py
-# Function to upsert a feed mapper profile.
-
 from __future__ import annotations
 import json
-from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
+
 from app.infra.uow import UoW
-from app.domains.procurement.repos import MapperRepository
+from app.domains.procurement.repos import MapperRepository, SupplierFeedRepository
 from app.schemas.mappers import FeedMapperUpsert, FeedMapperOut
+from app.core.errors import InvalidArgument, NotFound, Conflict, BadRequest
 
 def execute(uow: UoW, *, id_feed: int, payload: FeedMapperUpsert) -> FeedMapperOut:
+    # validação mínima do payload
+    if payload is None or payload.profile is None or not isinstance(payload.profile, dict):
+        raise InvalidArgument("Mapper profile must be a non-empty object")
+
+    # garantir que o feed existe
+    feed_repo = SupplierFeedRepository(uow.db)
+    feed = feed_repo.get(id_feed)
+    if not feed:
+        raise NotFound("Feed not found")
+
     repo = MapperRepository(uow.db)
     try:
         entity = repo.upsert_profile(
@@ -17,9 +27,12 @@ def execute(uow: UoW, *, id_feed: int, payload: FeedMapperUpsert) -> FeedMapperO
             bump_version=payload.bump_version,
         )
         uow.commit()
+    except IntegrityError:
+        uow.rollback()
+        raise Conflict("Could not upsert mapper due to integrity constraints")
     except Exception as e:
         uow.rollback()
-        raise HTTPException(status_code=400, detail=f"Could not upsert mapper: {e}")
+        raise BadRequest("Could not upsert mapper")
 
     return FeedMapperOut(
         id=entity.id,

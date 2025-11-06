@@ -14,11 +14,22 @@ from app.models.supplier_feed import SupplierFeed
 from app.schemas.products import ProductListOut, ProductOut, OfferOut
 from app.domains.procurement.repos import SupplierItemRepository
 
-def _as_decimal(s: str) -> Optional[Decimal]:
+def _as_decimal(s: str | None) -> Optional[Decimal]:
     if s is None:
         return None
+    raw = str(s).strip().replace(" ", "")
+    if not raw:
+        return None
     try:
-        return Decimal(str(s).strip().replace(",", "."))
+        if "," in raw and "." in raw:
+            # Se a última vírgula vem depois do último ponto → vírgula é decimal (formato PT)
+            if raw.rfind(",") > raw.rfind("."):
+                raw = raw.replace(".", "").replace(",", ".")
+            else:
+                raw = raw.replace(",", "")
+        else:
+            raw = raw.replace(",", ".")
+        return Decimal(raw)
     except (InvalidOperation, ValueError):
         return None
 

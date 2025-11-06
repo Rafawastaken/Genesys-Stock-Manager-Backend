@@ -2,7 +2,7 @@
 from __future__ import annotations
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, status
 
 from app.core.deps import get_uow, require_access_token
 from app.infra.uow import UoW
@@ -23,12 +23,14 @@ log = logging.getLogger("gsm.api.feeds")
 
 
 @router.get("/supplier/{id_supplier}", response_model=SupplierFeedOut)
-def get_supplier_feed(id_supplier: int, uow: UoW = Depends(get_uow), _=Depends(require_access_token)):
-    try:
-        e = uc_get_feed_by_supplier(uow, id_supplier=id_supplier)
-        return _to_out(e)
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Feed not found")
+def get_supplier_feed(
+    id_supplier: int,
+    uow: UoW = Depends(get_uow),
+    _=Depends(require_access_token),
+):
+    e = uc_get_feed_by_supplier(uow, id_supplier=id_supplier)  # levanta NotFound se não existir
+    return _to_out(e)
+
 
 
 @router.put("/supplier/{id_supplier}", response_model=SupplierFeedOut, dependencies=[Depends(require_access_token)])

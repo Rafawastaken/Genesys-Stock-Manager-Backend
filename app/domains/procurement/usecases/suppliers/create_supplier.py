@@ -1,31 +1,34 @@
+# app/domains/procurement/usecases/suppliers/create_supplier.py
 from __future__ import annotations
 
-from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
 from app.infra.uow import UoW
 from app.domains.procurement.repos import SupplierRepository
 from app.schemas.suppliers import SupplierCreate
 from app.models.supplier import Supplier
+from app.core.errors import InvalidArgument, Conflict, BadRequest  # << usa AppErrors
 
-
-def execute(uow: UoW, data: SupplierCreate):
+def execute(uow: UoW, *, data: SupplierCreate) -> Supplier:
     """
     Create a supplier and commit via UoW.
-    Prefer repo.create(data) if available; fallback to building the ORM entity and adding it.
-    Errors are always in English.
+    Prefers repo.create(data); falls back to building the ORM entity.
+    Errors are domain AppErrors (handled by middleware).
     """
+    # validação mínima
+    name = (data.name or "").strip()
+    if not name:
+        raise InvalidArgument("Supplier name is required")
+
     repo = SupplierRepository(uow.db)
 
     try:
-        # Preferred path: repository exposes a create(data)
         create = getattr(repo, "create", None)
         if callable(create):
             entity = create(data)
         else:
-            # Fallback: build the model here and add via repo.add(...) or session.add(...)
             entity = Supplier(
-                name=(data.name or "").strip(),
+                name=name,
                 active=data.active if data.active is not None else True,
                 logo_image=(data.logo_image or None),
                 contact_name=(data.contact_name or None),
@@ -34,7 +37,6 @@ def execute(uow: UoW, data: SupplierCreate):
                 margin=(data.margin or 0.0),
                 country=(data.country or None),
             )
-
             add = getattr(repo, "add", None)
             if callable(add):
                 add(entity)
@@ -42,22 +44,17 @@ def execute(uow: UoW, data: SupplierCreate):
                 uow.db.add(entity)
 
         uow.commit()
-        # Return the ORM entity; your response_model can serialize from attributes
         return entity
 
     except IntegrityError:
         uow.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Supplier name already exists",
-        )
-    except HTTPException:
-        # Bubble FastAPI HTTP errors as-is
+        # violação de unicidade, etc.
+        raise Conflict("Supplier name already exists")
+    except (InvalidArgument, Conflict, BadRequest):
+        # repropaga AppErrors já mapeados
         uow.rollback()
         raise
-    except Exception as e:
+    except Exception:
         uow.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Could not create supplier: {e}",
-        )
+        # não expor detalhes internos
+        raise BadRequest("Could not create supplier")

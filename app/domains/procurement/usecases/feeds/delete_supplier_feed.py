@@ -1,14 +1,20 @@
+# app/domains/procurement/usecases/feeds/delete_supplier_feed.py
 from __future__ import annotations
+from sqlalchemy.exc import IntegrityError
 from app.infra.uow import UoW
+from app.domains.procurement.repos import SupplierFeedRepository
+from app.core.errors import NotFound, Conflict
 
 def execute(uow: UoW, *, id_supplier: int) -> None:
-    """
-    Delete the supplier's feed using the UoW aggregator, then commit.
-    Mirrors the old command: uow.feeds.delete_by_supplier(id_supplier)
-    """
+    repo = SupplierFeedRepository(uow.db)
+    feed = repo.get_by_supplier(id_supplier)
+    if not feed:
+        raise NotFound("Feed not found for supplier")
+
     try:
-        uow.feeds.delete_by_supplier(id_supplier)
+        repo.delete(feed)      # espera o ORM entity
         uow.commit()
-    except Exception:
+    except IntegrityError:
         uow.rollback()
-        raise
+        # FK constraints ou regras de integridade
+        raise Conflict("Cannot delete feed due to integrity constraints")

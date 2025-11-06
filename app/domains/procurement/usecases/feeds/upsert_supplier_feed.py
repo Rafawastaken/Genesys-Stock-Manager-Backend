@@ -3,7 +3,7 @@ import json
 from app.infra.uow import UoW
 from app.schemas.feeds import SupplierFeedCreate, SupplierFeedUpdate, SupplierFeedOut
 from app.domains.procurement.repos import SupplierFeedRepository
-from app.services.queries.feeds.get_by_supplier import _to_out
+from app.domains.procurement.usecases.feeds.get_by_supplier import _to_out
 
 def execute(uow: UoW, *, id_supplier: int, data: SupplierFeedCreate | SupplierFeedUpdate) -> SupplierFeedOut:
     """
