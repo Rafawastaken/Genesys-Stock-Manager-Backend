@@ -1,21 +1,24 @@
 # app/api/v1/system.py
-from datetime import datetime
-from zoneinfo import ZoneInfo
 import time
+from datetime import datetime
+from typing import Annotated
+from zoneinfo import ZoneInfo
+
 from fastapi import APIRouter, Depends, Request, Response
-from sqlalchemy.orm import Session
 from sqlalchemy import text
-from typing import Optional
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.logging import get_request_id  # já tens no teu core.logging
 from app.infra.session import get_session
 from app.schemas.system import HealthDTO
-from app.core.logging import get_request_id  # já tens no teu core.logging
 
 router = APIRouter(tags=["health"])
+SessionDep = Annotated[Session, Depends(get_session)]
+
 
 @router.get("/healthz", response_model=HealthDTO)
-def healthz(request: Request, response: Response, db: Session = Depends(get_session)):
+def healthz(request: Request, response: Response, db: SessionDep):
     tz = ZoneInfo(settings.TIMEZONE)
     now_dt = datetime.now(tz)
     now = now_dt.isoformat()
@@ -57,7 +60,7 @@ def healthz(request: Request, response: Response, db: Session = Depends(get_sess
 
 
 @router.get("/readyz")
-def readyz(request: Request, response: Response, db: Session = Depends(get_session)):
+def readyz(request: Request, response: Response, db: SessionDep):
     checks: dict[str, dict] = {}
 
     # 1) DB + versão de migração (exemplo com tabela aleatória; ajusta ao teu esquema)
@@ -68,7 +71,7 @@ def readyz(request: Request, response: Response, db: Session = Depends(get_sessi
         checks["db"] = {"ok": False, "error": str(e)[:200]}
 
     # 2) (Opcional) ping externo – só se a flag estiver ativa
-    external_ok: Optional[bool] = None
+    external_ok: bool | None = None
     if getattr(settings, "READINESS_CHECK_EXTERNALS", False):
         try:
             # coloca aqui algo leve: por ex., uma rota /system do Prestashop se tiveres

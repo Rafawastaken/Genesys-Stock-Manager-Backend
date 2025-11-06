@@ -4,7 +4,7 @@ from __future__ import annotations
 import csv
 import io
 import json
-from typing import Dict, Any, Tuple, Optional, List
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
@@ -22,7 +22,7 @@ def _looks_like_html(raw: bytes) -> bool:
     return start.startswith(b"<!doctype html") or start.startswith(b"<html")
 
 
-def _charset_from_content_type(ct: Optional[str]) -> Optional[str]:
+def _charset_from_content_type(ct: str | None) -> str | None:
     if not ct:
         return None
     for part in ct.split(";"):
@@ -32,7 +32,7 @@ def _charset_from_content_type(ct: Optional[str]) -> Optional[str]:
     return None
 
 
-def _infer_format(format_hint: Optional[str], content_type: Optional[str], sample: bytes) -> str:
+def _infer_format(format_hint: str | None, content_type: str | None, sample: bytes) -> str:
     """
     Decide 'json' vs 'csv' quando o cliente não define explicitamente.
     """
@@ -54,15 +54,16 @@ def _infer_format(format_hint: Optional[str], content_type: Optional[str], sampl
 
 # --- Back-compat helpers para serviços antigos -----------------------------
 
+
 async def http_download(
     url: str,
     *,
-    headers: Dict[str, str] | None = None,
-    params: Dict[str, str] | None = None,
+    headers: dict[str, str] | None = None,
+    params: dict[str, str] | None = None,
     timeout_s: int = 30,
     auth_kind: str | None = None,
-    auth: Dict[str, str] | None = None,
-) -> Tuple[int, Optional[str], bytes]:
+    auth: dict[str, str] | None = None,
+) -> tuple[int, str | None, bytes]:
     """
     Wrapper fino sobre FeedDownloader._http_get para manter APIs antigas.
     """
@@ -78,7 +79,7 @@ async def http_download(
     return status, ct, raw
 
 
-def parse_rows_json(raw: bytes) -> List[dict]:
+def parse_rows_json(raw: bytes) -> list[dict]:
     """
     Extrai linhas (dicts) de JSON (lista, {data|items|results|products|rows|list}, objeto único),
     ou NDJSON (uma linha JSON por linha).
@@ -98,7 +99,7 @@ def parse_rows_json(raw: bytes) -> List[dict]:
         pass
 
     # 2) NDJSON (cada linha um JSON)
-    out: List[dict] = []
+    out: list[dict] = []
     for line in raw.splitlines():
         line = line.strip()
         if not line:
@@ -117,7 +118,7 @@ def parse_rows_csv(
     *,
     delimiter: str = ",",
     max_rows: int | None = None,
-) -> List[dict]:
+) -> list[dict]:
     """
     Converte CSV → lista de dicts (usando 1ª linha como cabeçalho).
     """
@@ -128,7 +129,7 @@ def parse_rows_csv(
 
     sio = io.StringIO(text)
     reader = csv.DictReader(sio, delimiter=(delimiter or ","), restkey="_extra", restval="")
-    out: List[dict] = []
+    out: list[dict] = []
     for i, row in enumerate(reader, 1):
         clean: dict[str, Any] = {}
         for k, v in row.items():
@@ -240,12 +241,12 @@ class FeedDownloader:
         self,
         *,
         url: str,
-        headers: Optional[Dict[str, str]],
-        params: Optional[Dict[str, str]],
-        auth_kind: Optional[str],
-        auth: Optional[Dict[str, str]],
+        headers: dict[str, str] | None,
+        params: dict[str, str] | None,
+        auth_kind: str | None,
+        auth: dict[str, str] | None,
         timeout_s: int,
-    ) -> Tuple[int, Optional[str], bytes, Optional[str]]:
+    ) -> tuple[int, str | None, bytes, str | None]:
         # headers defensivos
         h = dict(headers or {})
 
@@ -285,11 +286,11 @@ class FeedDownloader:
 
     # -------------------- Preview helpers --------------------
 
-    def _decode_best(self, raw: bytes, ct: Optional[str]) -> str:
+    def _decode_best(self, raw: bytes, ct: str | None) -> str:
         if not raw:
             return ""
         enc = _charset_from_content_type(ct)
-        tried: List[str] = []
+        tried: list[str] = []
         if enc:
             tried.append(enc)
         for codec in tried + ["utf-8", "latin-1"]:
@@ -299,7 +300,7 @@ class FeedDownloader:
                 continue
         return raw.decode("utf-8", errors="ignore")
 
-    def _preview_json(self, raw_sample: bytes) -> List[dict]:
+    def _preview_json(self, raw_sample: bytes) -> list[dict]:
         # tenta JSON tradicional; se falhar, tenta NDJSON
         try:
             obj = json.loads(raw_sample.decode(errors="ignore"))
@@ -315,7 +316,7 @@ class FeedDownloader:
             pass
 
         # NDJSON (uma linha JSON por linha)
-        out: List[dict] = []
+        out: list[dict] = []
         for line in raw_sample.splitlines():
             line = line.strip()
             if not line:
@@ -328,7 +329,9 @@ class FeedDownloader:
                 continue
         return out
 
-    def _preview_csv(self, raw_sample: bytes, *, delimiter: str = ",", max_rows: int = 20) -> List[dict]:
+    def _preview_csv(
+        self, raw_sample: bytes, *, delimiter: str = ",", max_rows: int = 20
+    ) -> list[dict]:
         text = self._decode_best(raw_sample, ct="text/csv; charset=utf-8")
         if text.startswith("\ufeff"):
             text = text.lstrip("\ufeff")
@@ -341,7 +344,7 @@ class FeedDownloader:
             restval="",
         )
 
-        out: List[dict] = []
+        out: list[dict] = []
         for i, row in enumerate(reader, 1):
             clean: dict[str, Any] = {}
             for k, v in row.items():

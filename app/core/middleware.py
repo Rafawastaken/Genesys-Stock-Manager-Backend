@@ -1,12 +1,14 @@
 # app/core/middleware.py
-import time, uuid
 import logging
+import time
+import uuid
+
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.core.logging import set_request_id
 from app.core.errors import AppError  # << novo
+from app.core.logging import set_request_id
 
 log = logging.getLogger("gsm.http")
 
@@ -28,15 +30,26 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                 payload = {"code": e.code, "detail": e.detail}
                 response = JSONResponse(status_code=e.http_status, content=payload)
                 response.headers["X-Request-ID"] = rid
-                log.warning("<< %s %s -> %s (%s) in %.1fms",
-                            request.method, request.url.path, e.http_status, e.code, dt)
+                log.warning(
+                    "<< %s %s -> %s (%s) in %.1fms",
+                    request.method,
+                    request.url.path,
+                    e.http_status,
+                    e.code,
+                    dt,
+                )
                 return response
 
             # sucesso → log e header
             dt = (time.perf_counter() - t0) * 1000
             response.headers["X-Request-ID"] = rid
-            log.info("<< %s %s -> %s in %.1fms",
-                     request.method, request.url.path, response.status_code, dt)
+            log.info(
+                "<< %s %s -> %s in %.1fms",
+                request.method,
+                request.url.path,
+                response.status_code,
+                dt,
+            )
             return response
 
         finally:

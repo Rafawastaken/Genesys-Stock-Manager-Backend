@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 import json
 
 from app.core.errors import NotFound
-from app.infra.uow import UoW
 from app.domains.procurement.repos import MapperRepository
+from app.infra.uow import UoW
 from app.schemas.mappers import FeedMapperOut
+
 
 def execute(uow: UoW, *, id_supplier: int) -> FeedMapperOut:
     repo = MapperRepository(uow.db)

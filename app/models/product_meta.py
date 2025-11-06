@@ -1,8 +1,15 @@
 # app/models/product_meta.py
 from datetime import datetime
+from typing import TYPE_CHECKING
+
+from sqlalchemy import DateTime, ForeignKey, Integer, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Integer, Text, DateTime, ForeignKey, UniqueConstraint
+
 from app.infra.base import Base, utcnow
+
+if TYPE_CHECKING:
+    from app.models.product import Product
+
 
 class ProductMeta(Base):
     __tablename__ = "product_meta"
@@ -15,10 +22,12 @@ class ProductMeta(Base):
     id_product: Mapped[int] = mapped_column(
         ForeignKey("products.id", ondelete="CASCADE"), index=True, nullable=False
     )
-    name: Mapped[str] = mapped_column(Text, nullable=False)   # e.g., "color", "size", "warranty"
+    name: Mapped[str] = mapped_column(Text, nullable=False)  # e.g., "color", "size", "warranty"
     value: Mapped[str] = mapped_column(Text, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
+    )
 
     product: Mapped["Product"] = relationship("Product", back_populates="meta")

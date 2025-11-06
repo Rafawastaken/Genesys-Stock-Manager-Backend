@@ -1,13 +1,19 @@
 # app/domains/procurement/usecases/suppliers/get_supplier_detail.py
 from __future__ import annotations
+
 import json
 
+from app.core.errors import NotFound  # << usar AppError
+from app.domains.procurement.repos import (
+    MapperRepository,
+    SupplierFeedRepository,
+    SupplierRepository,
+)
 from app.infra.uow import UoW
-from app.domains.procurement.repos import SupplierRepository, SupplierFeedRepository, MapperRepository
-from app.schemas.suppliers import SupplierDetailOut, SupplierOut
 from app.schemas.feeds import SupplierFeedOut
 from app.schemas.mappers import FeedMapperOut
-from app.core.errors import NotFound  # << usar AppError
+from app.schemas.suppliers import SupplierDetailOut, SupplierOut
+
 
 def _supplier_to_out(s) -> SupplierOut:
     return SupplierOut(
@@ -24,26 +30,30 @@ def _supplier_to_out(s) -> SupplierOut:
         updated_at=s.updated_at,
     )
 
+
 def _feed_to_out(f) -> SupplierFeedOut | None:
     if not f:
         return None
-    return SupplierFeedOut.model_validate({
-        "id": f.id,
-        "id_supplier": f.id_supplier,
-        "kind": f.kind,
-        "format": f.format,
-        "url": f.url,
-        "active": f.active,
-        "csv_delimiter": f.csv_delimiter or ",",  # default consistente
-        "headers_json": getattr(f, "headers_json", None),
-        "params_json": getattr(f, "params_json", None),
-        "extra_json": getattr(f, "extra_json", None),
-        "auth_kind": getattr(f, "auth_kind", None),
-        "auth_json": getattr(f, "auth_json", None),
-        "has_auth": bool(getattr(f, "auth_json", None)),
-        "created_at": f.created_at,
-        "updated_at": f.updated_at,
-    })
+    return SupplierFeedOut.model_validate(
+        {
+            "id": f.id,
+            "id_supplier": f.id_supplier,
+            "kind": f.kind,
+            "format": f.format,
+            "url": f.url,
+            "active": f.active,
+            "csv_delimiter": f.csv_delimiter or ",",  # default consistente
+            "headers_json": getattr(f, "headers_json", None),
+            "params_json": getattr(f, "params_json", None),
+            "extra_json": getattr(f, "extra_json", None),
+            "auth_kind": getattr(f, "auth_kind", None),
+            "auth_json": getattr(f, "auth_json", None),
+            "has_auth": bool(getattr(f, "auth_json", None)),
+            "created_at": f.created_at,
+            "updated_at": f.updated_at,
+        }
+    )
+
 
 def _mapper_to_out(m) -> FeedMapperOut | None:
     if not m:
@@ -61,10 +71,11 @@ def _mapper_to_out(m) -> FeedMapperOut | None:
         updated_at=m.updated_at,
     )
 
+
 def execute(uow: UoW, *, id_supplier: int) -> SupplierDetailOut:
     sup_repo = SupplierRepository(uow.db)
     feed_repo = SupplierFeedRepository(uow.db)
-    map_repo  = MapperRepository(uow.db)
+    map_repo = MapperRepository(uow.db)
 
     s = sup_repo.get(id_supplier)
     if not s:

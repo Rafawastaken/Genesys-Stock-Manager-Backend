@@ -2,16 +2,16 @@ import logging
 import os
 import re
 import sys
+from contextvars import ContextVar
 from datetime import datetime, timedelta
 from logging.handlers import TimedRotatingFileHandler
-from typing import Optional
-from contextvars import ContextVar
 
 # -------- request-id (mantido) ----------
-_request_id_ctx: ContextVar[Optional[str]] = ContextVar("request_id", default=None)
+_request_id_ctx: ContextVar[str | None] = ContextVar("request_id", default=None)
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv()  # não usa override=True para não pisar variáveis já exportadas
 except Exception:
     pass
@@ -23,16 +23,18 @@ class RequestIdFilter(logging.Filter):
         record.request_id = rid or "-"
         return True
 
-def get_request_id() -> Optional[str]:
+
+def get_request_id() -> str | None:
     """Devolve o request id atual (ou None se não houver)."""
     return _request_id_ctx.get()
+
 
 def get_request_id_or(default: str = "-") -> str:
     rid = _request_id_ctx.get()
     return rid if rid else default
 
 
-def set_request_id(rid: Optional[str]) -> None:
+def set_request_id(rid: str | None) -> None:
     _request_id_ctx.set(rid)
 
 

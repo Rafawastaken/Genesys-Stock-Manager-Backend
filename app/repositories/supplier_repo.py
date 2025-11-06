@@ -1,20 +1,25 @@
 # app/repositories/supplier_repo.py
 from __future__ import annotations
-from typing import Optional, Tuple, Sequence
+
+from collections.abc import Sequence
+
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func
+
 from app.models.supplier import Supplier
 from app.schemas.suppliers import SupplierCreate
+
 
 class SupplierRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get(self, id_supplier: int) -> Optional[Supplier]:
+    def get(self, id_supplier: int) -> Supplier | None:
         return self.db.get(Supplier, id_supplier)
 
-    def get_by_name(self, name: str) -> Optional[Supplier]:
-        if not name: return None
+    def get_by_name(self, name: str) -> Supplier | None:
+        if not name:
+            return None
         return self.db.scalar(select(Supplier).where(Supplier.name == name))
 
     def create(self, data: SupplierCreate) -> Supplier:
@@ -40,11 +45,21 @@ class SupplierRepository:
         self.db.delete(entity)
         # sem flush/commit aqui
 
-    def search_paginated(self, search: Optional[str], page: int, page_size: int) -> Tuple[Sequence[Supplier], int]:
+    def search_paginated(
+        self, search: str | None, page: int, page_size: int
+    ) -> tuple[Sequence[Supplier], int]:
         base = select(Supplier)
         if search:
             like = f"%{search.strip()}%"
             base = base.where(Supplier.name.ilike(like))
         total = self.db.scalar(select(func.count()).select_from(base.subquery())) or 0
-        rows = self.db.execute(base.order_by(Supplier.created_at.desc()).limit(page_size).offset((page-1)*page_size)).scalars().all()
+        rows = (
+            self.db.execute(
+                base.order_by(Supplier.created_at.desc())
+                .limit(page_size)
+                .offset((page - 1) * page_size)
+            )
+            .scalars()
+            .all()
+        )
         return rows, int(total)

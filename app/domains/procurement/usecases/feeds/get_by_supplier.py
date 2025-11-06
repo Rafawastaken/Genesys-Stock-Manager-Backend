@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 import json
 
 from app.core.errors import NotFound
-from app.infra.uow import UoW
 from app.domains.procurement.repos import SupplierFeedRepository
+from app.infra.uow import UoW
 from app.schemas.feeds import SupplierFeedOut
+
 
 def _to_out(e) -> SupplierFeedOut:
     has_auth = False
@@ -30,6 +32,7 @@ def _to_out(e) -> SupplierFeedOut:
         created_at=e.created_at,
         updated_at=e.updated_at,
     )
+
 
 def execute(uow: UoW, *, id_supplier: int):
     repo = SupplierFeedRepository(uow.db)

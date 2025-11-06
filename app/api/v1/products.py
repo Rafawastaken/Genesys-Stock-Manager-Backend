@@ -1,15 +1,20 @@
 from __future__ import annotations
-import logging
-from fastapi import APIRouter, Depends, Query
-from app.core.deps import get_uow, require_access_token
-from app.infra.uow import UoW
-from app.domains.catalog.usecases.products.list_products import execute as uc_q_list_products
 
+import logging
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Query
+
+from app.core.deps import get_uow, require_access_token
+from app.domains.catalog.usecases.products.list_products import execute as uc_q_list_products
+from app.infra.uow import UoW
 
 router = APIRouter(prefix="/products", tags=["products"])
 log = logging.getLogger("gsm.api.products")
+UowDep = Annotated[UoW, Depends(get_uow)]
 
-@router.get("")
+
+@router.get("", dependencies=[Depends(require_access_token)])
 def get_products(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -23,8 +28,7 @@ def get_products(
     has_stock: bool | None = None,
     id_supplier: int | None = None,
     sort: str = Query("recent", pattern="^(recent|name)$"),
-    uow: UoW = Depends(get_uow),
-    _=Depends(require_access_token),
+    uow: UowDep = None,
 ):
     return uc_q_list_products(
         uow,

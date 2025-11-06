@@ -2,11 +2,13 @@
 # Unit of Work simples para SQLAlchemy
 
 from __future__ import annotations
-from typing import Optional
+
 from sqlalchemy.orm import Session
+
 
 class UoW:
     """Unit of Work simples: commands fazem commit; queries nunca."""
+
     def __init__(self, db: Session):
         self.db: Session = db
         self._committed = False
@@ -20,7 +22,7 @@ class UoW:
         if not self._committed:
             self.db.rollback()
 
-    def __enter__(self) -> "UoW":
+    def __enter__(self) -> UoW:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:

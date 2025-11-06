@@ -1,17 +1,22 @@
 from __future__ import annotations
-from typing import Optional, Tuple, Iterable, Any, Dict, List, Sequence
-from sqlalchemy.orm import Session
-from sqlalchemy import select
-import hashlib
 
+import hashlib
+from collections.abc import Sequence
+from typing import Any
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.core.errors import InvalidArgument
 from app.models.supplier import Supplier
 from app.models.supplier_feed import SupplierFeed
 from app.models.supplier_item import SupplierItem
-from app.core.errors import InvalidArgument
+
 
 def _mk_fp(*parts: Any) -> str:
     raw = "|".join("" if p is None else str(p) for p in parts)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
 
 class SupplierItemRepository:
     def __init__(self, db: Session):
@@ -25,21 +30,23 @@ class SupplierItemRepository:
         sku: str,
         price: str,
         stock: int,
-        gtin: Optional[str],
-        partnumber: Optional[str],
+        gtin: str | None,
+        partnumber: str | None,
         id_feed_run: int,
-    ) -> Tuple[SupplierItem, bool, bool, Optional[str], Optional[int]]:
+    ) -> tuple[SupplierItem, bool, bool, str | None, int | None]:
         sku_norm = (sku or "").strip()
         if not sku_norm:
             raise InvalidArgument("SKU is empty")
 
-        stmt = select(SupplierItem).where(SupplierItem.id_feed == id_feed, SupplierItem.sku == sku_norm)
+        stmt = select(SupplierItem).where(
+            SupplierItem.id_feed == id_feed, SupplierItem.sku == sku_norm
+        )
         item = self.db.scalar(stmt)
 
         created = False
         changed = False
-        old_price: Optional[str] = None
-        old_stock: Optional[int] = None
+        old_price: str | None = None
+        old_stock: int | None = None
 
         new_fp = _mk_fp(id_feed, id_product, sku_norm, gtin, partnumber, price, stock)
 
@@ -79,10 +86,12 @@ class SupplierItemRepository:
         self.db.flush()
         return item, created, changed, old_price, old_stock
 
-    def list_offers_for_product_ids(self, product_ids: Sequence[int], only_in_stock: bool = False) -> List[Dict[str, Any]]:
+    def list_offers_for_product_ids(
+        self, product_ids: Sequence[int], only_in_stock: bool = False
+    ) -> list[dict[str, Any]]:
         si = SupplierItem
         sf = SupplierFeed
-        s  = Supplier
+        s = Supplier
 
         q = (
             select(

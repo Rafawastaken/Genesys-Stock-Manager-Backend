@@ -1,46 +1,53 @@
 # app/domains/procurement/usecases/runs/ingest_supplier.py
 from __future__ import annotations
 
-from typing import Optional, Dict, Any, List
 import csv
 import io
 import json
 import logging
+from typing import Any
 
 from sqlalchemy.exc import IntegrityError
 
-from app.infra.uow import UoW
+from app.core.errors import InvalidArgument, NotFound  # << NOVO
+from app.core.normalize import normalize_images
+from app.domains.catalog.repos import ProductRepository
+from app.domains.mapping.engine import IngestEngine
 from app.domains.procurement.repos import (
     FeedRunRepository,
     MapperRepository,
-    SupplierItemRepository,
     ProductEventRepository,
     SupplierFeedRepository,
+    SupplierItemRepository,
 )
-from app.domains.catalog.repos import ProductRepository
-from app.domains.mapping.engine import IngestEngine
-from app.core.normalize import normalize_images
 from app.external.feed_downloader import http_download, parse_rows_json
-from app.core.errors import NotFound, InvalidArgument  # << NOVO
+from app.infra.uow import UoW
 
 log = logging.getLogger("gsm.ingest")
 
 CANON_PRODUCT_KEYS = {
-    "gtin", "mpn", "partnumber", "name", "description",
-    "image_url", "image_urls",
-    "category", "weight", "brand",
+    "gtin",
+    "mpn",
+    "partnumber",
+    "name",
+    "description",
+    "image_url",
+    "image_urls",
+    "category",
+    "weight",
+    "brand",
 }
 CANON_OFFER_KEYS = {"price", "stock", "sku"}
 
 
-def _decode_csv(raw: bytes, delimiter: str = ",") -> List[dict]:
+def _decode_csv(raw: bytes, delimiter: str = ",") -> list[dict]:
     """Convert CSV bytes into list[dict] (utf-8; ignore errors)."""
     text = raw.decode("utf-8", errors="ignore")
     reader = csv.DictReader(io.StringIO(text), delimiter=(delimiter or ","))
     return [{k: (v if v is not None else "") for k, v in row.items()} for row in reader]
 
 
-def _split_payload(mapped: Dict[str, Any]):
+def _split_payload(mapped: dict[str, Any]):
     out_product = {
         "gtin": (mapped.get("gtin") or "") or None,
         "partnumber": (mapped.get("mpn") or mapped.get("partnumber") or "") or None,
@@ -62,14 +69,14 @@ def _split_payload(mapped: Dict[str, Any]):
     return out_product, out_offer, meta
 
 
-async def execute(uow: UoW, *, id_supplier: int, limit: Optional[int] = None) -> Dict[str, Any]:
+async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> dict[str, Any]:
     # repositories
-    run_repo    = FeedRunRepository(uow.db)
-    feed_repo   = SupplierFeedRepository(uow.db)
+    run_repo = FeedRunRepository(uow.db)
+    feed_repo = SupplierFeedRepository(uow.db)
     mapper_repo = MapperRepository(uow.db)
-    prod_repo   = ProductRepository(uow.db)
-    item_repo   = SupplierItemRepository(uow.db)
-    ev_repo     = ProductEventRepository(uow.db)
+    prod_repo = ProductRepository(uow.db)
+    item_repo = SupplierItemRepository(uow.db)
+    ev_repo = ProductEventRepository(uow.db)
 
     # validate supplier feed
     feed = feed_repo.get_by_supplier(id_supplier)
@@ -80,26 +87,34 @@ async def execute(uow: UoW, *, id_supplier: int, limit: Optional[int] = None) ->
     # start run
     run = run_repo.start(id_feed=feed.id)
     id_run = run.id
-    log.info("[run=%s] start ingest id_supplier=%s id_feed=%s format=%s url=%s",
-             id_run, id_supplier, feed.id, feed.format, feed.url)
+    log.info(
+        "[run=%s] start ingest id_supplier=%s id_feed=%s format=%s url=%s",
+        id_run,
+        id_supplier,
+        feed.id,
+        feed.format,
+        feed.url,
+    )
 
     try:
         # download
         headers = json.loads(feed.headers_json) if feed.headers_json else None
-        params  = json.loads(feed.params_json) if feed.params_json else None
+        params = json.loads(feed.params_json) if feed.params_json else None
         status_code, content_type, raw = await http_download(
             feed.url, headers=headers, params=params, timeout_s=60
         )
 
         if status_code < 200 or status_code >= 300:
-            run_repo.finalize_http_error(id_run, http_status=status_code, error_msg=f"HTTP {status_code}")
+            run_repo.finalize_http_error(
+                id_run, http_status=status_code, error_msg=f"HTTP {status_code}"
+            )
             uow.commit()
             log.error("[run=%s] download error: HTTP %s", id_run, status_code)
             return {"ok": False, "id_run": id_run, "error": f"HTTP {status_code}"}
 
         # parse rows
         fmt = (feed.format or "").lower()
-        rows: List[dict]
+        rows: list[dict]
         if fmt == "json":
             rows = parse_rows_json(raw)
         else:
@@ -128,8 +143,8 @@ async def execute(uow: UoW, *, id_supplier: int, limit: Optional[int] = None) ->
             product_payload, offer_payload, meta_payload = _split_payload(mapped)
 
             gtin = product_payload.get("gtin") or None
-            pn   = product_payload.get("partnumber") or None
-            brand_name    = (mapped.get("brand") or None)
+            pn = product_payload.get("partnumber") or None
+            brand_name = mapped.get("brand") or None
             category_name = product_payload.get("category_path") or None
 
             # product: get_or_create by GTIN; fallback Brand+MPN
@@ -175,16 +190,14 @@ async def execute(uow: UoW, *, id_supplier: int, limit: Optional[int] = None) ->
             for k, v in meta_payload.items():
                 if v in (None, "", []):
                     continue
-                inserted, conflict = prod_repo.add_meta_if_missing(
-                    p.id, name=str(k), value=str(v)
-                )
+                inserted, conflict = prod_repo.add_meta_if_missing(p.id, name=str(k), value=str(v))
                 if inserted:
                     changed += 1
 
             # supplier offer upsert ((id_feed, sku) + internal fingerprint)
             price = offer_payload["price"]
             stock = offer_payload["stock"]
-            sku   = offer_payload["sku"] or (pn or gtin or f"row-{idx}")
+            sku = offer_payload["sku"] or (pn or gtin or f"row-{idx}")
 
             item, created, changed_item, old_price, old_stock = item_repo.upsert(
                 id_feed=feed.id,
@@ -212,8 +225,7 @@ async def execute(uow: UoW, *, id_supplier: int, limit: Optional[int] = None) ->
             ok += 1
 
             if idx % 500 == 0:
-                log.info("[run=%s] progress %s/%s ok=%s bad=%s",
-                         id_run, idx, len(rows), ok, bad)
+                log.info("[run=%s] progress %s/%s ok=%s bad=%s", id_run, idx, len(rows), ok, bad)
 
         # mark EOL for unseen items this run
         eol_marked = ev_repo.mark_eol_for_unseen_items(
@@ -233,7 +245,13 @@ async def execute(uow: UoW, *, id_supplier: int, limit: Optional[int] = None) ->
         status = run_repo.get(id_run).status  # return to caller
         log.info(
             "[run=%s] done status=%s total=%s ok=%s bad=%s changed=%s eol=%s",
-            id_run, status, total, ok, bad, changed, eol_marked
+            id_run,
+            status,
+            total,
+            ok,
+            bad,
+            changed,
+            eol_marked,
         )
 
         return {

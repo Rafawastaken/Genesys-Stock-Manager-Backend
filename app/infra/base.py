@@ -2,12 +2,13 @@
 # Base module for SQLAlchemy ORM models and utility functions.
 
 from __future__ import annotations
-from datetime import datetime, timezone
+
+from datetime import datetime
+
 from sqlalchemy.orm import declarative_base
 
-from app.core.config import settings
-
 Base = declarative_base()
+
 
 def utcnow() -> datetime:
     return datetime.utcnow()

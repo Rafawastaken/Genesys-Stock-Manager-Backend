@@ -1,9 +1,12 @@
 # app/domains/procurement/usecases/feeds/delete_supplier_feed.py
 from __future__ import annotations
+
 from sqlalchemy.exc import IntegrityError
-from app.infra.uow import UoW
+
+from app.core.errors import Conflict, NotFound
 from app.domains.procurement.repos import SupplierFeedRepository
-from app.core.errors import NotFound, Conflict
+from app.infra.uow import UoW
+
 
 def execute(uow: UoW, *, id_supplier: int) -> None:
     repo = SupplierFeedRepository(uow.db)
@@ -12,7 +15,7 @@ def execute(uow: UoW, *, id_supplier: int) -> None:
         raise NotFound("Feed not found for supplier")
 
     try:
-        repo.delete(feed)      # espera o ORM entity
+        repo.delete(feed)  # espera o ORM entity
         uow.commit()
     except IntegrityError:
         uow.rollback()

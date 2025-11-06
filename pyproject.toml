@@ -1,0 +1,56 @@
+[project]
+name = "genesys-backend"
+requires-python = ">=3.11"
+version = "0.0.0"
+
+# -------------------- Ruff --------------------
+[tool.ruff]
+target-version = "py313"           # estás em Python 3.13
+line-length = 100
+src = ["app", "apps", "tests"]
+extend-exclude = ["**/migrations/**"]
+
+# Regras ativas (pep8/pyflakes/bugbear/isort/pyupgrade/mccabe/simplify)
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I", "UP", "C90", "SIM"]
+ignore = [
+  "E203",  # compat Black/Ruff em slices
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "apps"]
+combine-as-imports = true
+
+[tool.ruff.format]
+quote-style = "double"    # força "..."
+indent-style = "space"
+line-ending = "lf"
+skip-magic-trailing-comma = false
+
+# -------------------- mypy --------------------
+[tool.mypy]
+python_version = "3.11"            # mantém como tinhas (podes subir depois)
+warn_unused_configs = true
+no_implicit_optional = true
+check_untyped_defs = true
+
+# app.models.*: mais “solto” (ORM), mas sem ignorar tudo
+[[tool.mypy.overrides]]
+module = ["app.models.*"]
+disallow_untyped_defs = false
+check_untyped_defs = false
+
+# app.external.*: permite defs não tipadas
+[[tool.mypy.overrides]]
+module = ["app.external.*"]
+disallow_untyped_defs = false
+
+# tests.*: não obriga a tipagem estrita
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+
+# deps externos ruidosos
+[[tool.mypy.overrides]]
+module = ["sqlalchemy.*", "alembic.*"]
+ignore_missing_imports = true

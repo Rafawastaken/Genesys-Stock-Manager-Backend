@@ -1,11 +1,14 @@
 # app/domains/auth/usecases/login.py
 
 from __future__ import annotations
+
 from fastapi import HTTPException, status
+
+from app.core.config import settings
 from app.external.prestashop_client import PrestashopClient
 from app.schemas.auth import LoginRequest, LoginResponse
 from app.shared.jwt import create_access_token
-from app.core.config import settings
+
 
 def execute(req: LoginRequest) -> LoginResponse:
     """

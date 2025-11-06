@@ -2,15 +2,16 @@
 # Validate mapping profiles for procurement feeds (no exceptions; returns a structured result).
 
 from __future__ import annotations
-import json
-from typing import Optional, Dict, Any, List
 
-from app.infra.uow import UoW
+import json
+from typing import Any
+
 from app.domains.procurement.repos import MapperRepository
+from app.infra.uow import UoW
 from app.schemas.mappers import MapperValidateIn, MapperValidateOut
 
 
-def _validate(profile: Dict[str, Any] | None, headers: Optional[List[str]]) -> Dict[str, Any]:
+def _validate(profile: dict[str, Any] | None, headers: list[str] | None) -> dict[str, Any]:
     """
     Light validation: ensure 'fields' maps required targets (gtin, price, stock).
     If headers are provided, verify each field's 'source' exists in headers.
@@ -37,10 +38,12 @@ def _validate(profile: Dict[str, Any] | None, headers: Optional[List[str]]) -> D
     if headers is not None:
         headers_checked = True
         hdrset = {str(h).lower() for h in headers}
-        for tgt, cfg in fields.items():
+        for _tgt, cfg in fields.items():  # rename tgt -> _tgt
             src = (cfg or {}).get("source") or (cfg or {}).get("from")
             if src and str(src).lower() not in hdrset:
-                errors.append({"code": "missing_source", "msg": f"Source '{src}' does not exist in headers"})
+                errors.append(
+                    {"code": "missing_source", "msg": f"Source '{src}' does not exist in headers"}
+                )
 
     return {
         "ok": len(errors) == 0,
@@ -52,7 +55,7 @@ def _validate(profile: Dict[str, Any] | None, headers: Optional[List[str]]) -> D
 
 
 def execute(uow: UoW, *, id_feed: int, payload: MapperValidateIn) -> MapperValidateOut:
-    profile: Optional[Dict[str, Any]] = payload.profile
+    profile: dict[str, Any] | None = payload.profile
 
     if profile is None:
         # No payload profile → fetch from repository (no UoW aggregator).

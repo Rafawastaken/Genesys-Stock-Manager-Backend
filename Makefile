@@ -57,5 +57,3 @@ clean:
 ## Workers
 worker:
 	$(PYTHON) -m apps.worker_main
-
-

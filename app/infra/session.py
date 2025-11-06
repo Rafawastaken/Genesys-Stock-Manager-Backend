@@ -1,14 +1,17 @@
 # app/infra/session.py
 # This module sets up the database connection and session management using SQLAlchemy.
 
-from typing import Any, Generator
+from collections.abc import Generator
+from typing import Any
 
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import Session, sessionmaker
+
 from app.core.config import settings
 
 engine = create_engine(settings.database_url, pool_pre_ping=True, future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+
 
 def db_ping() -> bool:
     try:
@@ -17,6 +20,7 @@ def db_ping() -> bool:
         return True
     except Exception:
         return False
+
 
 def get_session() -> Generator[Session, Any, None]:
     db = SessionLocal()

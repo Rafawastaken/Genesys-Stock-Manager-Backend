@@ -1,9 +1,10 @@
 # app/core/config.py
 # Configurações centrais para o aplicativo Genesys API Backend.
 
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
-from typing import List, Literal
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True)
@@ -13,7 +14,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     TIMEZONE: str = "Europe/Lisbon"
     APP_ENV: Literal["dev", "prod"] = "dev"
-    APP_PORT:int = 8000
+    APP_PORT: int = 8000
     # Logging
     LOG_LEVEL: str = "DEBUG"
     # Database
@@ -32,8 +33,8 @@ class Settings(BaseSettings):
     PS_AUTH_VALIDATE_HEADER: str = "X-Genesys-Key"
     PS_USER_AGENT: str = "genesys/2.0"
     PS_AUTH_TIMEOUT_S: int = 10
-    PS_AUTH_VERIFY_SSL: str = "true" 
-    
+    PS_AUTH_VERIFY_SSL: str = "true"
+
     @property
     def database_url(self) -> str:
         return (
@@ -41,6 +42,5 @@ class Settings(BaseSettings):
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         )
 
-    
-    
+
 settings = Settings()

@@ -1,9 +1,11 @@
 from __future__ import annotations
-from typing import Optional
-from sqlalchemy.orm import Session
+
 from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from app.models.product_supplier_event import ProductSupplierEvent
 from app.models.supplier_item import SupplierItem
+
 
 class ProductEventRepository:
     def __init__(self, db: Session):
@@ -14,7 +16,7 @@ class ProductEventRepository:
         *,
         id_product: int,
         id_supplier: int,
-        gtin: Optional[str],
+        gtin: str | None,
         new_price: str,
         new_stock: int,
         created: bool,
@@ -26,15 +28,17 @@ class ProductEventRepository:
             return 0
 
         reason = "init" if created else "change"
-        self.db.add(ProductSupplierEvent(
-            id_product=id_product,
-            id_supplier=id_supplier,
-            gtin=gtin,
-            price=new_price,
-            stock=new_stock,
-            id_feed_run=id_feed_run,
-            reason=reason,
-        ))
+        self.db.add(
+            ProductSupplierEvent(
+                id_product=id_product,
+                id_supplier=id_supplier,
+                gtin=gtin,
+                price=new_price,
+                stock=new_stock,
+                id_feed_run=id_feed_run,
+                reason=reason,
+            )
+        )
         # sem flush/commit aqui
         return 1
 
@@ -49,14 +53,16 @@ class ProductEventRepository:
 
         count = 0
         for it in unseen:
-            self.db.add(ProductSupplierEvent(
-                id_product=it.id_product,
-                id_supplier=id_supplier,
-                gtin=it.gtin,
-                price=it.price,
-                stock=0,
-                id_feed_run=id_feed_run,
-                reason="eol",
-            ))
+            self.db.add(
+                ProductSupplierEvent(
+                    id_product=it.id_product,
+                    id_supplier=id_supplier,
+                    gtin=it.gtin,
+                    price=it.price,
+                    stock=0,
+                    id_feed_run=id_feed_run,
+                    reason="eol",
+                )
+            )
             count += 1
         return count

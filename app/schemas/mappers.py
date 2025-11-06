@@ -1,27 +1,34 @@
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Any
+
 from pydantic import BaseModel
+
 
 class FeedMapperOut(BaseModel):
     id: int
     id_feed: int
-    profile: Dict[str, Any]
+    profile: dict[str, Any]
     version: int
     created_at: datetime
-    updated_at: Optional[datetime]
-    class Config: from_attributes = True
+    updated_at: datetime | None
+
+    class Config:
+        from_attributes = True
+
 
 class FeedMapperUpsert(BaseModel):
-    profile: Dict[str, Any]
+    profile: dict[str, Any]
     bump_version: bool = True
 
+
 class MapperValidateIn(BaseModel):
-    profile: Optional[Dict[str, Any]] = None
-    headers: Optional[List[str]] = None
+    profile: dict[str, Any] | None = None
+    headers: list[str] | None = None
+
 
 class MapperValidateOut(BaseModel):
     ok: bool
-    errors: List[Dict[str, Any]]
-    warnings: List[Dict[str, Any]]
-    required_coverage: Dict[str, Any]
+    errors: list[dict[str, Any]]
+    warnings: list[dict[str, Any]]
+    required_coverage: dict[str, Any]
     headers_checked: bool

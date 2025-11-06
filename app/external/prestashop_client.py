@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 import certifi
 import requests
@@ -35,8 +35,12 @@ class PrestashopClient:
             )
 
         # Timeouts / TLS verification
-        self.timeout = int(getattr(settings, "PS_AUTH_TIMEOUT_S", getattr(settings, "PS_TIMEOUT_S", 10)))
-        verify_env = str(getattr(settings, "PS_AUTH_VERIFY_SSL", getattr(settings, "PS_VERIFY_SSL", "true"))).lower()
+        self.timeout = int(
+            getattr(settings, "PS_AUTH_TIMEOUT_S", getattr(settings, "PS_TIMEOUT_S", 10))
+        )
+        verify_env = str(
+            getattr(settings, "PS_AUTH_VERIFY_SSL", getattr(settings, "PS_VERIFY_SSL", "true"))
+        ).lower()
         self.verify = certifi.where() if verify_env != "false" else False
 
         # Headers
@@ -57,7 +61,7 @@ class PrestashopClient:
         self._session.mount("https://", adapter)
         self._session.mount("http://", adapter)
 
-    def login(self, email: str, password: str) -> Dict[str, Any]:
+    def login(self, email: str, password: str) -> dict[str, Any]:
         """
         Authenticate against Prestashop r_genesys module.
         Returns a normalized user dict: {id, email, name, role}.
@@ -88,7 +92,7 @@ class PrestashopClient:
             # don't leak body; keep message stable for the API layer
             raise RuntimeError(f"auth_failed:{resp.status_code}")
 
-        data: Dict[str, Any] = {}
+        data: dict[str, Any] = {}
         try:
             data = resp.json() if resp.content else {}
         except Exception:

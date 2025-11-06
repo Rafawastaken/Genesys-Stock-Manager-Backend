@@ -3,11 +3,12 @@ from __future__ import annotations
 
 from sqlalchemy.exc import IntegrityError
 
-from app.infra.uow import UoW
+from app.core.errors import BadRequest, Conflict, InvalidArgument  # << usa AppErrors
 from app.domains.procurement.repos import SupplierRepository
-from app.schemas.suppliers import SupplierCreate
+from app.infra.uow import UoW
 from app.models.supplier import Supplier
-from app.core.errors import InvalidArgument, Conflict, BadRequest  # << usa AppErrors
+from app.schemas.suppliers import SupplierCreate
+
 
 def execute(uow: UoW, *, data: SupplierCreate) -> Supplier:
     """

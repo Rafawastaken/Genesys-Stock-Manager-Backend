@@ -1,21 +1,25 @@
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Any
+
 from pydantic import BaseModel
+
 
 class SupplierFeedCreate(BaseModel):
     kind: str
     format: str
     url: str
     active: bool = True
-    headers: Optional[Dict[str,str]] = None
-    params: Optional[Dict[str,str]] = None
-    auth_kind: Optional[str] = None
-    auth: Optional[Dict[str, Any]] = None
-    extra: Optional[Dict[str, Any]] = None
-    csv_delimiter: Optional[str] = ","
+    headers: dict[str, str] | None = None
+    params: dict[str, str] | None = None
+    auth_kind: str | None = None
+    auth: dict[str, Any] | None = None
+    extra: dict[str, Any] | None = None
+    csv_delimiter: str | None = ","
+
 
 class SupplierFeedUpdate(SupplierFeedCreate):
     pass
+
 
 class SupplierFeedOut(BaseModel):
     id: int
@@ -24,34 +28,38 @@ class SupplierFeedOut(BaseModel):
     format: str
     url: str
     active: bool
-    headers_json: Optional[str]
-    params_json: Optional[str]
-    auth_kind: Optional[str]
-    auth_json: Optional[str]
-    extra_json: Optional[str]
-    csv_delimiter: Optional[str]
+    headers_json: str | None
+    params_json: str | None
+    auth_kind: str | None
+    auth_json: str | None
+    extra_json: str | None
+    csv_delimiter: str | None
     has_auth: bool
     created_at: datetime
-    updated_at: Optional[datetime]
-    class Config: from_attributes = True
+    updated_at: datetime | None
+
+    class Config:
+        from_attributes = True
+
 
 class FeedTestRequest(BaseModel):
-    kind: Optional[str] = None
+    kind: str | None = None
     format: str
     url: str
-    headers: Optional[Dict[str,str]] = None
-    params: Optional[Dict[str,str]] = None
-    auth_kind: Optional[str] = None
-    auth: Optional[Dict[str, Any]] = None
-    extra: Optional[Dict[str, Any]] = None
-    csv_delimiter: Optional[str] = ","
-    max_rows: Optional[int] = 20
+    headers: dict[str, str] | None = None
+    params: dict[str, str] | None = None
+    auth_kind: str | None = None
+    auth: dict[str, Any] | None = None
+    extra: dict[str, Any] | None = None
+    csv_delimiter: str | None = ","
+    max_rows: int | None = 20
+
 
 class FeedTestResponse(BaseModel):
     ok: bool
     status_code: int
-    content_type: Optional[str]
+    content_type: str | None
     bytes_read: int
-    preview_type: Optional[str]  # "json"|"csv"|None
-    rows_preview: Optional[List[Dict[str, Any]]]
-    error: Optional[str] = None
+    preview_type: str | None  # "json"|"csv"|None
+    rows_preview: list[dict[str, Any]] | None
+    error: str | None = None

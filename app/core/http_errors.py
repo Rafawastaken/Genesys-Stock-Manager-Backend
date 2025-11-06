@@ -1,16 +1,19 @@
 # app/core/http_errors.py
 from __future__ import annotations
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
-from app.core.errors import NotFound, Conflict, BadRequest
+from app.core.errors import BadRequest, Conflict, NotFound
+
 
 def _payload(status: int, code: str, message: str, details=None):
     body = {"error": code, "message": message}
     if details is not None:
         body["details"] = details
     return JSONResponse(status_code=status, content=body)
+
 
 def init_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(NotFound)

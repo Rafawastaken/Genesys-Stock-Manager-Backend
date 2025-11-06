@@ -1,12 +1,15 @@
 # app/domains/procurement/usecases/mappers/put_mapper.py
 from __future__ import annotations
+
 import json
+
 from sqlalchemy.exc import IntegrityError
 
-from app.infra.uow import UoW
+from app.core.errors import BadRequest, Conflict, InvalidArgument, NotFound
 from app.domains.procurement.repos import MapperRepository, SupplierFeedRepository
-from app.schemas.mappers import FeedMapperUpsert, FeedMapperOut
-from app.core.errors import InvalidArgument, NotFound, Conflict, BadRequest
+from app.infra.uow import UoW
+from app.schemas.mappers import FeedMapperOut, FeedMapperUpsert
+
 
 def execute(uow: UoW, *, id_feed: int, payload: FeedMapperUpsert) -> FeedMapperOut:
     # validação mínima do payload
@@ -30,7 +33,7 @@ def execute(uow: UoW, *, id_feed: int, payload: FeedMapperUpsert) -> FeedMapperO
     except IntegrityError:
         uow.rollback()
         raise Conflict("Could not upsert mapper due to integrity constraints")
-    except Exception as e:
+    except Exception:
         uow.rollback()
         raise BadRequest("Could not upsert mapper")
 

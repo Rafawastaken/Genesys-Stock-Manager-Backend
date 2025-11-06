@@ -8,4 +8,4 @@
 - A melhor oferta deve ser baseada tambem com stock
   - Fornecedor A - 2 unidades - 5€
   - Fornecedor B - 0 unidades - 2€
-  - Melhor Oferta: Fornecedor A 
+  - Melhor Oferta: Fornecedor A

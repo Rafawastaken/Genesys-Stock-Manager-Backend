@@ -1,7 +1,10 @@
 from __future__ import annotations
+
 from sqlalchemy.orm import Session
-from app.models.feed_run import FeedRun
+
 from app.core.errors import NotFound
+from app.models.feed_run import FeedRun
+
 
 class FeedRunRepository:
     def __init__(self, db: Session):
@@ -22,7 +25,9 @@ class FeedRunRepository:
         self.db.flush()
         return run
 
-    def finalize_ok(self, id_run: int, *, rows_total: int, rows_changed: int, partial: bool) -> None:
+    def finalize_ok(
+        self, id_run: int, *, rows_total: int, rows_changed: int, partial: bool
+    ) -> None:
         run = self.get_required(id_run)
         run.status = "partial" if partial else "ok"
         run.rows_total = rows_total

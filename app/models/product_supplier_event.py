@@ -1,8 +1,11 @@
 # app/models/product_supplier_event.py
 from datetime import datetime
+
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Integer, String, Text, ForeignKey, DateTime, CheckConstraint, Index
+
 from app.infra.base import Base, utcnow
+
 
 class ProductSupplierEvent(Base):
     __tablename__ = "products_suppliers_events"
@@ -14,16 +17,24 @@ class ProductSupplierEvent(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    id_product: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), index=True)
-    id_supplier: Mapped[int] = mapped_column(ForeignKey("suppliers.id", ondelete="CASCADE"), index=True)
+    id_product: Mapped[int] = mapped_column(
+        ForeignKey("products.id", ondelete="CASCADE"), index=True
+    )
+    id_supplier: Mapped[int] = mapped_column(
+        ForeignKey("suppliers.id", ondelete="CASCADE"), index=True
+    )
 
     price: Mapped[str] = mapped_column(String(40), nullable=False)
     stock: Mapped[int] = mapped_column(Integer, nullable=False)
 
     gtin: Mapped[str | None] = mapped_column(Text, nullable=True)
-    id_feed_run: Mapped[int | None] = mapped_column(ForeignKey("feed_runs.id", ondelete="SET NULL"), nullable=True)
+    id_feed_run: Mapped[int | None] = mapped_column(
+        ForeignKey("feed_runs.id", ondelete="SET NULL"), nullable=True
+    )
 
-    reason: Mapped[str] = mapped_column(String(10), default="init", nullable=False)  # init|change|eol
+    reason: Mapped[str] = mapped_column(
+        String(10), default="init", nullable=False
+    )  # init|change|eol
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
     product = relationship("Product", back_populates="supplier_events")

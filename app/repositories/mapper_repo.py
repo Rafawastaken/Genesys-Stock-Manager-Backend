@@ -1,23 +1,27 @@
 from __future__ import annotations
+
 import json
-from typing import Optional, Dict, Any
-from sqlalchemy.orm import Session
+from typing import Any
+
 from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.core.errors import InvalidArgument
 from app.models.feed_mapper import FeedMapper
 from app.models.supplier_feed import SupplierFeed
-from app.core.errors import InvalidArgument
+
 
 class MapperRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get(self, id_mapper: int) -> Optional[FeedMapper]:
+    def get(self, id_mapper: int) -> FeedMapper | None:
         return self.db.get(FeedMapper, id_mapper)
 
-    def get_by_feed(self, id_feed: int) -> Optional[FeedMapper]:
+    def get_by_feed(self, id_feed: int) -> FeedMapper | None:
         return self.db.scalar(select(FeedMapper).where(FeedMapper.id_feed == id_feed))
 
-    def get_by_supplier(self, id_supplier: int) -> Optional[FeedMapper]:
+    def get_by_supplier(self, id_supplier: int) -> FeedMapper | None:
         stmt = (
             select(FeedMapper)
             .join(SupplierFeed, FeedMapper.id_feed == SupplierFeed.id)
@@ -35,14 +39,16 @@ class MapperRepository:
         return m
 
     # Conveniência: devolve SEMPRE um dict; em erro de parsing devolve {}.
-    def get_profile(self, id_feed: int) -> Dict[str, Any]:
+    def get_profile(self, id_feed: int) -> dict[str, Any]:
         m = self.get_or_create_by_feed(id_feed)
         try:
             return json.loads(m.profile_json) if m.profile_json else {}
         except Exception:
             return {}
 
-    def upsert_profile(self, id_feed: int, profile: Dict[str, Any], *, bump_version: bool = True) -> FeedMapper:
+    def upsert_profile(
+        self, id_feed: int, profile: dict[str, Any], *, bump_version: bool = True
+    ) -> FeedMapper:
         if not isinstance(profile, dict):
             raise InvalidArgument("Mapper profile must be an object (dict)")
 

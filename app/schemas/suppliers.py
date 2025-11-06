@@ -1,6 +1,6 @@
 from datetime import datetime
-from typing import Optional, List
-from pydantic import BaseModel, Field
+
+from pydantic import BaseModel
 
 from app.schemas.feeds import SupplierFeedOut, SupplierFeedUpdate
 from app.schemas.mappers import FeedMapperOut, FeedMapperUpsert
@@ -9,49 +9,56 @@ from app.schemas.mappers import FeedMapperOut, FeedMapperUpsert
 class SupplierCreate(BaseModel):
     name: str
     active: bool = True
-    logo_image: Optional[str] = None
-    contact_name: Optional[str] = None
-    contact_phone: Optional[str] = None
-    contact_email: Optional[str] = None
+    logo_image: str | None = None
+    contact_name: str | None = None
+    contact_phone: str | None = None
+    contact_email: str | None = None
     margin: float = 0
-    country: Optional[str] = None
+    country: str | None = None
+
 
 class SupplierUpdate(BaseModel):
-    name: Optional[str] = None
-    active: Optional[bool] = None
-    logo_image: Optional[str] = None
-    contact_name: Optional[str] = None
-    contact_phone: Optional[str] = None
-    contact_email: Optional[str] = None
-    margin: Optional[float] = None
-    country: Optional[str] = None
+    name: str | None = None
+    active: bool | None = None
+    logo_image: str | None = None
+    contact_name: str | None = None
+    contact_phone: str | None = None
+    contact_email: str | None = None
+    margin: float | None = None
+    country: str | None = None
+
 
 class SupplierOut(BaseModel):
     id: int
     name: str
     active: bool
-    logo_image: Optional[str]
-    contact_name: Optional[str]
-    contact_phone: Optional[str]
-    contact_email: Optional[str]
+    logo_image: str | None
+    contact_name: str | None
+    contact_phone: str | None
+    contact_email: str | None
     margin: float
-    country: Optional[str]
+    country: str | None
     created_at: datetime
-    updated_at: Optional[datetime]
-    class Config: from_attributes = True
+    updated_at: datetime | None
+
+    class Config:
+        from_attributes = True
+
 
 class SupplierList(BaseModel):
-    items: List[SupplierOut]
+    items: list[SupplierOut]
     total: int
     page: int
     page_size: int
 
+
 class SupplierDetailOut(BaseModel):
     supplier: SupplierOut
-    feed: Optional[SupplierFeedOut]
-    mapper: Optional[FeedMapperOut]
+    feed: SupplierFeedOut | None
+    mapper: FeedMapperOut | None
+
 
 class SupplierBundleUpdate(BaseModel):
-    supplier: Optional[SupplierUpdate] = None
-    feed: Optional[SupplierFeedUpdate] = None
-    mapper: Optional[FeedMapperUpsert] = None
+    supplier: SupplierUpdate | None = None
+    feed: SupplierFeedUpdate | None = None
+    mapper: FeedMapperUpsert | None = None

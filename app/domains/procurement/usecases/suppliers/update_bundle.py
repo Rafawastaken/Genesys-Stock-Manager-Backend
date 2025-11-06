@@ -1,23 +1,25 @@
 # app/domains/procurement/usecases/suppliers/update_bundle.py
 from __future__ import annotations
+
 import json
+
 from sqlalchemy.exc import IntegrityError
 
-from app.infra.uow import UoW
+from app.core.errors import BadRequest, Conflict, NotFound
 from app.domains.procurement.repos import (
+    MapperRepository,
     SupplierFeedRepository,
     SupplierRepository,
-    MapperRepository,
 )
-from app.schemas.suppliers import SupplierBundleUpdate, SupplierDetailOut
 from app.domains.procurement.usecases.suppliers.get_supplier_detail import execute as uc_get_detail
-from app.core.errors import NotFound, BadRequest, Conflict
+from app.infra.uow import UoW
+from app.schemas.suppliers import SupplierBundleUpdate, SupplierDetailOut
 
 
 def execute(uow: UoW, *, id_supplier: int, payload: SupplierBundleUpdate) -> SupplierDetailOut:
     sup_repo = SupplierRepository(uow.db)
     feed_repo = SupplierFeedRepository(uow.db)
-    map_repo  = MapperRepository(uow.db)
+    map_repo = MapperRepository(uow.db)
 
     try:
         # 1) Supplier
@@ -27,8 +29,16 @@ def execute(uow: UoW, *, id_supplier: int, payload: SupplierBundleUpdate) -> Sup
                 raise NotFound("Supplier not found")
 
             data = payload.supplier
-            for f in ("name", "active", "logo_image", "contact_name", "contact_phone",
-                      "contact_email", "margin", "country"):
+            for f in (
+                "name",
+                "active",
+                "logo_image",
+                "contact_name",
+                "contact_phone",
+                "contact_email",
+                "margin",
+                "country",
+            ):
                 v = getattr(data, f, None)
                 if v is not None:
                     setattr(s, f, v)
@@ -36,6 +46,7 @@ def execute(uow: UoW, *, id_supplier: int, payload: SupplierBundleUpdate) -> Sup
         # 2) Feed (upsert por supplier)
         feed_entity = None
         if payload.feed is not None:
+
             def mutate(e):
                 # base
                 for f in ("kind", "format", "url", "active", "csv_delimiter", "auth_kind"):

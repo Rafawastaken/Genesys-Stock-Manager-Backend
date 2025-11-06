@@ -1,16 +1,18 @@
 # app/repositories/category_repo.py
 from __future__ import annotations
-from typing import Optional
-from sqlalchemy.orm import Session
+
 from sqlalchemy import select
-from app.models.category import Category
+from sqlalchemy.orm import Session
+
 from app.core.errors import InvalidArgument, NotFound
+from app.models.category import Category
+
 
 class CategoryRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get(self, id_category: int) -> Optional[Category]:
+    def get(self, id_category: int) -> Category | None:
         return self.db.get(Category, id_category)
 
     def get_required(self, id_category: int) -> Category:
@@ -19,7 +21,7 @@ class CategoryRepository:
             raise NotFound("Category not found")
         return c
 
-    def get_by_name(self, name: str) -> Optional[Category]:
+    def get_by_name(self, name: str) -> Category | None:
         if not name:
             return None
         return self.db.scalar(select(Category).where(Category.name == name))

@@ -1,20 +1,21 @@
 from __future__ import annotations
-from typing import Optional, Dict, List
+
 from decimal import Decimal, InvalidOperation
 
-from sqlalchemy import select, func, exists
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import aliased
 
+from app.domains.procurement.repos import SupplierItemRepository
 from app.infra.uow import UoW
-from app.models.product import Product
 from app.models.brand import Brand
 from app.models.category import Category
-from app.models.supplier_item import SupplierItem
+from app.models.product import Product
 from app.models.supplier_feed import SupplierFeed
-from app.schemas.products import ProductListOut, ProductOut, OfferOut
-from app.domains.procurement.repos import SupplierItemRepository
+from app.models.supplier_item import SupplierItem
+from app.schemas.products import OfferOut, ProductListOut, ProductOut
 
-def _as_decimal(s: str | None) -> Optional[Decimal]:
+
+def _as_decimal(s: str | None) -> Decimal | None:
     if s is None:
         return None
     raw = str(s).strip().replace(" ", "")
@@ -33,7 +34,8 @@ def _as_decimal(s: str | None) -> Optional[Decimal]:
     except (InvalidOperation, ValueError):
         return None
 
-def _best_offer(offers: List[OfferOut]) -> Optional[OfferOut]:
+
+def _best_offer(offers: list[OfferOut]) -> OfferOut | None:
     """
     Choose the lowest-price offer WITH stock.
     If no offer has stock > 0, return None.
@@ -50,20 +52,21 @@ def _best_offer(offers: List[OfferOut]) -> Optional[OfferOut]:
             best, best_price = o, p
     return best
 
+
 def execute(
     uow: UoW,
     *,
     page: int = 1,
     page_size: int = 20,
-    q: Optional[str] = None,
-    gtin: Optional[str] = None,
-    partnumber: Optional[str] = None,
-    id_brand: Optional[int] = None,
-    brand: Optional[str] = None,
-    id_category: Optional[int] = None,
-    category: Optional[str] = None,
-    has_stock: Optional[bool] = None,
-    id_supplier: Optional[int] = None,
+    q: str | None = None,
+    gtin: str | None = None,
+    partnumber: str | None = None,
+    id_brand: int | None = None,
+    brand: str | None = None,
+    id_category: int | None = None,
+    category: str | None = None,
+    has_stock: bool | None = None,
+    id_supplier: int | None = None,
     sort: str = "recent",
 ) -> ProductListOut:
     db = uow.db
@@ -95,9 +98,7 @@ def execute(
     if q:
         like = f"%{q.strip()}%"
         base = base.where(
-            Product.name.ilike(like)
-            | Product.partnumber.ilike(like)
-            | Product.gtin.ilike(like)
+            Product.name.ilike(like) | Product.partnumber.ilike(like) | Product.gtin.ilike(like)
         )
     if gtin:
         base = base.where(Product.gtin == gtin)
@@ -130,10 +131,7 @@ def execute(
     if sort == "name":
         base = base.order_by(Product.name.asc().nulls_last())
     else:
-        base = base.order_by(
-            Product.updated_at.desc().nulls_last(),
-            Product.created_at.desc()
-        )
+        base = base.order_by(Product.updated_at.desc().nulls_last(), Product.created_at.desc())
 
     total = db.scalar(select(func.count()).select_from(base.subquery())) or 0
 
@@ -146,7 +144,7 @@ def execute(
         return ProductListOut(items=[], total=int(total), page=page, page_size=page_size)
 
     ids = [r.id for r in rows]
-    items_map: Dict[int, ProductOut] = {}
+    items_map: dict[int, ProductOut] = {}
     for r in rows:
         items_map[r.id] = ProductOut(
             id=r.id,

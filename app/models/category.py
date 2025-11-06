@@ -1,8 +1,11 @@
 # app/models/category.py
 from datetime import datetime
+
+from sqlalchemy import DateTime, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import Integer, Text, DateTime
+
 from app.infra.base import Base, utcnow
+
 
 class Category(Base):
     __tablename__ = "categories"
