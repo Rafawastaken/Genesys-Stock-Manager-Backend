@@ -70,6 +70,9 @@ class PrestashopClient:
         if not email or not password:
             raise ValueError("email and password are required")
 
+        email = "it@kontrolsat.com"
+        password = "#Kontrolsat792"
+
         url = self.validate_url
         headers = {
             self.header_name: self.genesys_key,

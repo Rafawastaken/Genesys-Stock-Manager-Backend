@@ -1,11 +1,11 @@
 # app/core/normalize.py
 # Funções utilitárias para normalização de dados comuns em e-commerce:
-# app/core/normalize.py
 from __future__ import annotations
 
 import html
 import json
 import re
+import unicodedata
 from contextlib import suppress
 from collections.abc import Iterable
 from decimal import Decimal, InvalidOperation
@@ -13,6 +13,9 @@ from typing import Any
 
 _WS_RE = re.compile(r"\s+")
 _TAG_RE = re.compile(r"<[^>]+>")
+_SEP_RE = re.compile(r"[,\|\s]+")
+_SYMBOLS_RE = re.compile(r"[®™©]+")
+_SPACES_RE = re.compile(r"\s+")
 
 
 def as_str(x: Any) -> str | None:
@@ -119,10 +122,6 @@ def to_bool(x: Any) -> bool | None:
     return None
 
 
-# imagens
-_SEP_RE = re.compile(r"[,\|\s]+")
-
-
 def _coerce_list(val: Any) -> list[str]:
     if val is None:
         return []
@@ -212,3 +211,31 @@ def coerce_mapped_for_preview(m: dict) -> dict:
         if k in out:
             out[k] = to_decimal_str(out.get(k)) if k == "weight" else clean_text(out.get(k))
     return out
+
+
+def _nfkc(s: str) -> str:
+    return unicodedata.normalize("NFKC", s)
+
+
+def normalize_simple(text: str | None, max_len: int = 120) -> str | None:
+    """Para GUARDAR/mostrar: trim, remove símbolos, colapsa espaços. Mantém maiúsc./minúsc."""
+    if not text:
+        return None
+    s = _nfkc(text).strip()
+    s = _SYMBOLS_RE.sub("", s)
+    s = _SPACES_RE.sub(" ", s)
+    return (s[:max_len]).strip() or None
+
+
+def normalize_key_ci(text: str | None, max_len: int = 120) -> str | None:
+    """Para LOOKUP/DEDUPE: aplica normalize_simple + lower(). NÃO guardar na BD."""
+    s = normalize_simple(text, max_len)
+    return s.lower() if s else None
+
+
+def normalize_ascii(text: str | None) -> str | None:
+    """Opcional: remove diacríticos (útil para slugs/aliases)."""
+    base = normalize_simple(text)
+    if base is None:
+        return None
+    return unicodedata.normalize("NFKD", base).encode("ascii", "ignore").decode("ascii")

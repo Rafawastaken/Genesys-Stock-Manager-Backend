@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy.exc import IntegrityError
 
 from app.core.errors import InvalidArgument, NotFound  # << NOVO
-from app.core.normalize import normalize_images
+from app.core.normalize import normalize_images, normalize_simple
 from app.domains.catalog.repos import ProductRepository
 from app.domains.mapping.engine import IngestEngine
 from app.domains.procurement.repos import (
@@ -145,10 +145,13 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
 
             gtin = product_payload.get("gtin") or None
             pn = product_payload.get("partnumber") or None
-            brand_name = mapped.get("brand") or None
-            category_name = product_payload.get("category_path") or None
 
-            # product: get_or_create by GTIN; fallback Brand+MPN
+            raw_brand_name = mapped.get("brand") or None
+            raw_category_name = product_payload.get("category_path") or None
+
+            brand_name = normalize_simple(raw_brand_name) if raw_brand_name else None
+            category_name = normalize_simple(raw_category_name) if raw_category_name else None
+
             try:
                 p = prod_repo.get_or_create(gtin=gtin, partnumber=pn, brand_name=brand_name)
             except InvalidArgument:

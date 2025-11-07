@@ -5,6 +5,9 @@ from datetime import UTC, datetime
 
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+from app.infra.bootstrap import ensure_brand_category_ci
+from app.infra.session import engine
 
 from app.api.v1.auth import router as auth_router
 from app.api.v1.feeds import router as feeds_router
@@ -12,17 +15,25 @@ from app.api.v1.mappers import router as mappers_router
 from app.api.v1.products import router as products_router
 from app.api.v1.runs import router as runs_router
 from app.api.v1.suppliers import router as suppliers_router
+from app.api.v1.brands import router as brands_router
 
 # Routes
 from app.api.v1.system import router as system_router
 from app.core.http_errors import init_error_handlers
 from app.core.logging import setup_logging
 from app.core.middleware import RequestContextMiddleware
+from app.core.config import settings
 
 setup_logging()
 
-app = FastAPI(title="Genesys API Backend", version="2.0.0")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    ensure_brand_category_ci(engine)
+    yield
+
+
+app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION)
 app.add_middleware(RequestContextMiddleware)
 
 init_error_handlers(app)
@@ -53,3 +64,4 @@ app.include_router(feeds_router, prefix="/api/v1")
 app.include_router(mappers_router, prefix="/api/v1")
 app.include_router(runs_router, prefix="/api/v1")
 app.include_router(products_router, prefix="/api/v1")
+app.include_router(brands_router, prefix="/api/v1")

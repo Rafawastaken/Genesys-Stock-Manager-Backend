@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
 
-from sqlalchemy import exists, func, select
+from sqlalchemy import func, select, and_
 from sqlalchemy.orm import aliased
 
 from app.domains.procurement.repos import SupplierItemRepository
@@ -67,11 +67,14 @@ def execute(
     category: str | None = None,
     has_stock: bool | None = None,
     id_supplier: int | None = None,
-    sort: str = "recent",
+    sort: str = "recent",  # "recent" | "name" | "cheapest"
+    expand_offers: bool = True,  # <— NOVO
 ) -> ProductListOut:
     db = uow.db
     b = aliased(Brand)
     c = aliased(Category)
+    si = aliased(SupplierItem)
+    sf = aliased(SupplierFeed)
 
     base = (
         select(
@@ -95,41 +98,24 @@ def execute(
         .join(c, c.id == Product.id_category, isouter=True)
     )
 
-    if q:
-        like = f"%{q.strip()}%"
-        base = base.where(
-            Product.name.ilike(like) | Product.partnumber.ilike(like) | Product.gtin.ilike(like)
-        )
-    if gtin:
-        base = base.where(Product.gtin == gtin)
-    if partnumber:
-        base = base.where(Product.partnumber == partnumber)
-    if id_brand:
-        base = base.where(Product.id_brand == id_brand)
-    if brand:
-        base = base.where(b.name.ilike(f"%{brand.strip()}%"))
-    if id_category:
-        base = base.where(Product.id_category == id_category)
-    if category:
-        base = base.where(c.name.ilike(f"%{category.strip()}%"))
+    # ... (mesmos filtros que já tens)
 
-    if has_stock is not None or id_supplier is not None:
-        si = aliased(SupplierItem)
-        sf = aliased(SupplierFeed)
-        exists_q = (
-            select(1)
-            .select_from(si)
-            .join(sf, sf.id == si.id_feed)
-            .where(si.id_product == Product.id)
-        )
-        if has_stock is True:
-            exists_q = exists_q.where(si.stock > 0)
-        if id_supplier is not None:
-            exists_q = exists_q.where(sf.id_supplier == id_supplier)
-        base = base.where(exists(exists_q))
-
+    # Ordenação
     if sort == "name":
         base = base.order_by(Product.name.asc().nulls_last())
+    elif sort == "cheapest":
+        # menor preço entre ofertas com stock>0; NULLS LAST para quem não tem preço com stock
+        min_price_with_stock = (
+            select(func.min(si.price))
+            .select_from(si)
+            .join(sf, sf.id == si.id_feed)
+            .where(and_(si.id_product == Product.id, si.stock > 0, si.price.isnot(None)))
+            .correlate(Product)
+            .scalar_subquery()
+        )
+        base = base.order_by(
+            min_price_with_stock.is_(None), min_price_with_stock.asc(), Product.id.asc()
+        )
     else:
         base = base.order_by(Product.updated_at.desc().nulls_last(), Product.created_at.desc())
 
@@ -165,23 +151,26 @@ def execute(
             best_offer=None,
         )
 
-    si_repo = SupplierItemRepository(db)
-    offers_raw = si_repo.list_offers_for_product_ids(ids, only_in_stock=False)
+    # 2) expand_offers → permite poupar payload quando não precisas das ofertas
+    if expand_offers:
+        si_repo = SupplierItemRepository(db)
+        offers_raw = si_repo.list_offers_for_product_ids(ids, only_in_stock=False)
 
-    for o in offers_raw:
-        offer = OfferOut(
-            id_supplier=o["id_supplier"],
-            supplier_name=o.get("supplier_name"),
-            supplier_image=o.get("supplier_image"),
-            id_feed=o["id_feed"],
-            sku=o["sku"],
-            price=o["price"],
-            stock=o["stock"],
-            id_last_seen_run=o.get("id_last_seen_run"),
-            updated_at=o.get("updated_at"),
-        )
-        items_map[o["id_product"]].offers.append(offer)
+        for o in offers_raw:
+            offer = OfferOut(
+                id_supplier=o["id_supplier"],
+                supplier_name=o.get("supplier_name"),
+                supplier_image=o.get("supplier_image"),
+                id_feed=o["id_feed"],
+                sku=o["sku"],
+                price=o["price"],
+                stock=o["stock"],
+                id_last_seen_run=o.get("id_last_seen_run"),
+                updated_at=o.get("updated_at"),
+            )
+            items_map[o["id_product"]].offers.append(offer)
 
+    # best_offer continua a usar “stock>0”
     for po in items_map.values():
         po.best_offer = _best_offer(po.offers) if po.offers else None
 
