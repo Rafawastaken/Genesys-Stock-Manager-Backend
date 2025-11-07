@@ -50,3 +50,17 @@ class CategoryRepository:
             if again:
                 return again
             raise
+
+    def list(self, *, q: str | None, page: int, page_size: int):
+        stmt = select(Category)
+        if q:
+            like = f"%{q.strip()}%"
+            stmt = stmt.where(Category.name.ilike(like))
+        stmt = stmt.order_by(Category.name.asc())
+
+        total = self.db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
+
+        page = max(1, page)
+        page_size = max(1, min(page_size, 100))
+        rows = self.db.execute(stmt.limit(page_size).offset((page - 1) * page_size)).scalars().all()
+        return rows, int(total)
