@@ -1,7 +1,7 @@
 # app/repositories/category_repo.py
 from __future__ import annotations
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
@@ -52,15 +52,35 @@ class CategoryRepository:
             raise
 
     def list(self, *, q: str | None, page: int, page_size: int):
-        stmt = select(Category)
-        if q:
-            like = f"%{q.strip()}%"
-            stmt = stmt.where(Category.name.ilike(like))
-        stmt = stmt.order_by(Category.name.asc())
-
-        total = self.db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
-
+        # bounds
         page = max(1, page)
         page_size = max(1, min(page_size, 100))
+
+        # base & filtros
+        stmt = select(Category)
+        filters = []
+        if q:
+            like = f"%{q.strip()}%"
+            filters.append(func.btrim(Category.name).ilike(like))
+
+        if filters:
+            stmt = stmt.where(and_(*filters))
+
+        # total (sem ORDER BY/LIMIT)
+        total = (
+            self.db.scalar(
+                (select(func.count()).select_from(Category).where(and_(*filters)))
+                if filters
+                else (select(func.count()).select_from(Category))
+            )
+            or 0
+        )
+
+        # ordenação estável, case-insensitive
+        stmt = stmt.order_by(
+            func.lower(func.btrim(Category.name)).asc(),
+            Category.id.asc(),
+        )
+
         rows = self.db.execute(stmt.limit(page_size).offset((page - 1) * page_size)).scalars().all()
         return rows, int(total)

@@ -1,7 +1,7 @@
 # app/repositories/brand_repo.py
 from __future__ import annotations
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
@@ -68,16 +68,37 @@ class BrandRepository:
             raise
 
     def list(self, *, q: str | None, page: int, page_size: int):
-        stmt = select(Brand)
-        if q:
-            like = f"%{q.strip()}%"
-            stmt = stmt.where(Brand.name.ilike(like))
-        stmt = stmt.order_by(Brand.name.asc())
-
-        total = self.db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
-
+        # sane bounds
         page = max(1, page)
         page_size = max(1, min(page_size, 100))
+
+        # base + filtros
+        stmt = select(Brand)
+        filters = []
+        if q:
+            like = f"%{q.strip()}%"
+            # simples e portátil; se tiveres unaccent no futuro, podemos trocar
+            filters.append(func.btrim(Brand.name).ilike(like))
+
+        if filters:
+            stmt = stmt.where(and_(*filters))
+
+        # total (sem ORDER BY / LIMIT)
+        total = (
+            self.db.scalar(
+                select(func.count()).select_from(Brand).where(and_(*filters))
+                if filters
+                else select(func.count()).select_from(Brand)
+            )
+            or 0
+        )
+
+        # ordenação estável e case-insensitive
+        stmt = stmt.order_by(
+            func.lower(func.btrim(Brand.name)).asc(),
+            Brand.id.asc(),
+        )
+
         rows = self.db.execute(stmt.limit(page_size).offset((page - 1) * page_size)).scalars().all()
         return rows, int(total)
 
