@@ -1,21 +1,15 @@
+# app/domains/procurement/usecases/feeds/upsert_supplier_feed.py
 from __future__ import annotations
-
 import json
 
 from app.domains.procurement.repos import SupplierFeedRepository
-from app.domains.procurement.usecases.feeds.get_by_supplier import _to_out
 from app.infra.uow import UoW
-from app.schemas.feeds import SupplierFeedCreate, SupplierFeedOut, SupplierFeedUpdate
+from app.schemas.feeds import SupplierFeedCreate, SupplierFeedUpdate, SupplierFeedOut
 
 
 def execute(
     uow: UoW, *, id_supplier: int, data: SupplierFeedCreate | SupplierFeedUpdate
 ) -> SupplierFeedOut:
-    """
-    Upsert feed for supplier, commit, and map to SupplierFeedOut.
-    Mirrors the old command logic.
-    """
-
     def mutate(e):
         for f in ("kind", "format", "url", "active", "csv_delimiter"):
             v = getattr(data, f, None)
@@ -41,4 +35,4 @@ def execute(
     repo = SupplierFeedRepository(uow.db)
     entity = repo.upsert_for_supplier(id_supplier, mutate)
     uow.commit()
-    return _to_out(entity)
+    return SupplierFeedOut.from_entity(entity)
