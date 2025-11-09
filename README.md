@@ -27,6 +27,7 @@ Backend
 │  │  └─ __init__.py
 │  ├─ domains
 │  │  ├─ auth
+│  │  │  ├─ ports.py
 │  │  │  ├─ usecases
 │  │  │  │  ├─ login.py
 │  │  │  │  └─ __init__.py
@@ -78,6 +79,7 @@ Backend
 │  │  └─ __init__.py
 │  ├─ external
 │  │  ├─ feed_downloader.py
+│  │  ├─ prestashop_auth_provider.py
 │  │  ├─ prestashop_client.py
 │  │  └─ __init__.py
 │  ├─ infra
@@ -125,6 +127,7 @@ Backend
 │  │  ├─ jwt.py
 │  │  └─ __init__.py
 │  └─ __init__.py
+├─ app.zip
 ├─ apps
 │  ├─ api_main.py
 │  └─ __init__.py

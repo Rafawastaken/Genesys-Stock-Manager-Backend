@@ -1,29 +1,40 @@
-# app/external/prestashop_client.py
 from __future__ import annotations
-
 import logging
+import time
 from typing import Any
 
 import certifi
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util import Retry
+from requests.exceptions import ConnectTimeout, ReadTimeout, Timeout, ConnectionError as ConnErr
 
 from app.core.config import settings
 
 log = logging.getLogger("gsm.external.prestashop_client")
 
 
+def _mask_email(email: str) -> str:
+    try:
+        local, _, domain = email.partition("@")
+        if not domain:
+            return email[:2] + "…" if email else ""
+        return (local[:2] + "…" if local else "") + "@" + domain
+    except Exception:
+        return "masked"
+
+
+def _len_bytes(b: bytes | None) -> int:
+    return len(b or b"")
+
+
 class PrestashopClient:
     """
-    Minimal HTTP client for Prestashop auth via r_genesys module.
+    Stateless HTTP client for Prestashop auth via r_genesys module.
     - No credential hardcoding.
-    - Retries only for idempotent methods (GET/HEAD), not POST.
-    - Strict config validation and safe logging (never logs password).
+    - POST with light retry only for transient network/server errors.
+    - Safe logging (never logs password or secret keys).
     """
 
     def __init__(self) -> None:
-        # Required config for auth endpoint
         self.validate_url: str | None = getattr(settings, "PS_AUTH_VALIDATE_URL", None)
         self.header_name: str | None = getattr(settings, "PS_AUTH_VALIDATE_HEADER", None)
         self.genesys_key: str | None = getattr(settings, "PS_GENESYS_KEY", None)
@@ -34,78 +45,148 @@ class PrestashopClient:
                 "PS_AUTH_VALIDATE_URL / PS_AUTH_VALIDATE_HEADER / PS_GENESYS_KEY"
             )
 
-        # Timeouts / TLS verification
-        self.timeout = int(
-            getattr(settings, "PS_AUTH_TIMEOUT_S", getattr(settings, "PS_TIMEOUT_S", 10))
+        # separate (connect, read) timeouts
+        self.timeout: tuple[float, float] = (
+            float(getattr(settings, "PS_AUTH_CONNECT_TIMEOUT_S", 5)),
+            float(getattr(settings, "PS_AUTH_READ_TIMEOUT_S", 10)),
         )
         verify_env = str(
             getattr(settings, "PS_AUTH_VERIFY_SSL", getattr(settings, "PS_VERIFY_SSL", "true"))
         ).lower()
         self.verify = certifi.where() if verify_env != "false" else False
-
-        # Headers
         self.user_agent = getattr(settings, "PS_USER_AGENT", "genesys/2.0")
 
-        # HTTP session with retries for GET/HEAD only
-        self._session = requests.Session()
-        retries = Retry(
-            total=4,
-            connect=4,
-            read=2,
-            backoff_factor=0.4,
-            status_forcelist=(502, 503, 504),
-            allowed_methods=frozenset(["GET", "HEAD"]),
-            raise_on_status=False,
-        )
-        adapter = HTTPAdapter(max_retries=retries, pool_connections=4, pool_maxsize=8)
-        self._session.mount("https://", adapter)
-        self._session.mount("http://", adapter)
+        # retry knobs
+        self.retry_attempts = int(getattr(settings, "PS_AUTH_RETRY_ATTEMPTS", 2))
+        self.retry_backoff = float(getattr(settings, "PS_AUTH_RETRY_BACKOFF_S", 0.4))
 
     def login(self, email: str, password: str) -> dict[str, Any]:
-        """
-        Authenticate against Prestashop r_genesys module.
-        Returns a normalized user dict: {id, email, name, role}.
-        Raises RuntimeError('auth_failed:<code>') on non-200.
-        """
         if not email or not password:
             raise ValueError("email and password are required")
 
-        email = "it@kontrolsat.com"
-        password = "#Kontrolsat792"
-
-        url = self.validate_url
         headers = {
-            self.header_name: self.genesys_key,
+            self.header_name: self.genesys_key,  # value not logged
             "User-Agent": self.user_agent,
             "Accept": "application/json",
             "Content-Type": "application/json",
+            "Connection": "close",  # stateless: close TCP after response
         }
 
-        log.debug("PrestashopClient.login: POST %s for email=%s", url, email)
+        # OPTIONAL: propagate request id to Prestashop (uncomment if you expose it)
+        # try:
+        #     from app.core.middleware import request_id_var
+        #     rid = request_id_var.get(None)
+        #     if rid:
+        #         headers["X-Request-ID"] = str(rid)
+        # except Exception:
+        #     pass
 
-        resp = self._session.post(
-            url,
-            json={"email": email, "password": password},
-            headers=headers,
-            timeout=self.timeout,
-            verify=self.verify,
-        )
+        payload = {"email": email, "password": password}
+        url = self.validate_url
 
-        if resp.status_code != 200:
-            # don't leak body; keep message stable for the API layer
-            raise RuntimeError(f"auth_failed:{resp.status_code}")
+        last_exc: Exception | None = None
+        for attempt in range(self.retry_attempts + 1):
+            start = time.perf_counter()
+            try:
+                log.debug(
+                    "ps.auth POST start attempt=%d url=%s email=%s",
+                    attempt + 1,
+                    url,
+                    _mask_email(email),
+                )
 
-        data: dict[str, Any] = {}
-        try:
-            data = resp.json() if resp.content else {}
-        except Exception:
-            # tolerate invalid JSON
-            data = {}
+                resp = requests.post(
+                    url, json=payload, headers=headers, timeout=self.timeout, verify=self.verify
+                )
+                dur_ms = (time.perf_counter() - start) * 1000.0
 
-        user = data.get("user") if isinstance(data.get("user"), dict) else {}
-        uid = user.get("id") or data.get("id") or data.get("user_id") or email
-        email_out = user.get("email") or data.get("email") or email
-        name = user.get("name") or data.get("name") or "Guest"
-        role = user.get("role") or data.get("role") or "user"
+                sc = resp.status_code
+                ctype = resp.headers.get("Content-Type")
+                clen = _len_bytes(resp.content)
 
-        return {"id": uid, "email": email_out, "name": name, "role": role}
+                log.info(
+                    "ps.auth POST done status=%s dur=%.1fms ctype=%s len=%d attempt=%d",
+                    sc,
+                    dur_ms,
+                    ctype,
+                    clen,
+                    attempt + 1,
+                )
+
+                if 200 <= sc < 300:
+                    # parse json strictly
+                    try:
+                        data = resp.json() if resp.content else {}
+                    except Exception as parse_err:
+                        log.warning(
+                            "ps.auth json_parse_error dur=%.1fms len=%d attempt=%d",
+                            dur_ms,
+                            clen,
+                            attempt + 1,
+                        )
+                        raise RuntimeError("upstream_invalid_json") from parse_err
+
+                    user = data.get("user") if isinstance(data.get("user"), dict) else {}
+                    uid = user.get("id") or data.get("id") or data.get("user_id")
+                    if not uid:
+                        log.warning(
+                            "ps.auth missing_user dur=%.1fms attempt=%d", dur_ms, attempt + 1
+                        )
+                        raise RuntimeError("auth_failed:missing_user")
+
+                    email_out = user.get("email") or data.get("email") or email
+                    name = user.get("name") or data.get("name") or "Guest"
+                    role = user.get("role") or data.get("role") or "user"
+                    return {"id": uid, "email": email_out, "name": name, "role": role}
+
+                if sc in (401, 403):
+                    log.warning(
+                        "ps.auth unauthorized status=%s dur=%.1fms attempt=%d",
+                        sc,
+                        dur_ms,
+                        attempt + 1,
+                    )
+                    raise RuntimeError(f"auth_failed:{sc}")
+
+                if 500 <= sc < 600:
+                    log.warning(
+                        "ps.auth upstream_5xx status=%s dur=%.1fms attempt=%d will_retry=%s",
+                        sc,
+                        dur_ms,
+                        attempt + 1,
+                        attempt < self.retry_attempts,
+                    )
+                    raise RuntimeError(f"upstream_5xx:{sc}")
+
+                # 4xx (except 401/403), 429, etc.
+                log.warning(
+                    "ps.auth upstream_http status=%s dur=%.1fms attempt=%d", sc, dur_ms, attempt + 1
+                )
+                raise RuntimeError(f"upstream_http:{sc}")
+
+            except (ConnectTimeout, ReadTimeout, Timeout, ConnErr) as e:
+                last_exc = e
+                dur_ms = (time.perf_counter() - start) * 1000.0
+                will_retry = attempt < self.retry_attempts
+                log.warning(
+                    "ps.auth network_error=%s dur=%.1fms attempt=%d will_retry=%s",
+                    e.__class__.__name__,
+                    dur_ms,
+                    attempt + 1,
+                    will_retry,
+                )
+                if will_retry:
+                    time.sleep(self.retry_backoff * (2**attempt))
+                    continue
+                raise RuntimeError("upstream_timeout") from e
+
+            except RuntimeError as e:
+                last_exc = e
+                # only retry on 5xx marker
+                if str(e).startswith("upstream_5xx:") and attempt < self.retry_attempts:
+                    time.sleep(self.retry_backoff * (2**attempt))
+                    continue
+                raise
+
+        # safeguard
+        raise last_exc or RuntimeError("upstream_unknown")

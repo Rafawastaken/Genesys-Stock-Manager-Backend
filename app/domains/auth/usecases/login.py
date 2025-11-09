@@ -1,31 +1,29 @@
 # app/domains/auth/usecases/login.py
-
 from __future__ import annotations
-
-from fastapi import HTTPException, status
+from typing import Any
+from collections.abc import Callable
 
 from app.core.config import settings
-from app.external.prestashop_client import PrestashopClient
+from app.core.errors import Unauthorized
 from app.schemas.auth import LoginRequest, LoginResponse
 from app.shared.jwt import create_access_token
 
+AuthFn = Callable[[str, str], dict[str, Any]]
 
-def execute(req: LoginRequest) -> LoginResponse:
+
+def execute(req: LoginRequest, *, auth_login: AuthFn) -> LoginResponse:
     """
-    Authenticate against Prestashop and issue a JWT access token.
-    Errors are always in English.
+    Authenticate via injected auth function and issue a JWT.
+    Keep domain pure: no HTTPException, no external clients here.
     """
-    client = PrestashopClient()
     try:
-        user = client.login(req.email, req.password)
+        user = auth_login(req.email, req.password)
     except Exception as err:
-        # Keep it generic to avoid leaking auth details
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
-        ) from err
+        # genérico para não vazar detalhes
+        raise Unauthorized("Invalid credentials") from err
 
     access = create_access_token(
-        sub=str(user["id"]),
+        sub=str(user.get("id")),
         role=user.get("role", "user"),
         name=user.get("name"),
     )
@@ -35,8 +33,8 @@ def execute(req: LoginRequest) -> LoginResponse:
         access_token=access,
         expires_in=expires_in,
         user={
-            "uid": user["id"],
-            "email": user["email"],
+            "uid": user.get("id"),
+            "email": user.get("email"),
             "name": user.get("name"),
             "role": user.get("role", "user"),
         },

@@ -1,21 +1,10 @@
-# app/core/deps.py
-# Dependências comuns para rotas FastAPI
-
 import logging
 from typing import Annotated
-
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.orm import Session
-
-from app.infra.session import get_session
-from app.infra.uow import UoW
 from app.shared.jwt import decode_token
-from app.external.prestashop_client import PrestahopClient
 
-
-log = logging.getLogger("gsm.core.deps")
-
+log = logging.getLogger("gsm.core.deps.auth")
 _auth = HTTPBearer(auto_error=True)
 
 
@@ -23,15 +12,7 @@ def require_access_token(creds: Annotated[HTTPAuthorizationCredentials, Depends(
     try:
         return decode_token(creds.credentials, expected_typ="access")
     except Exception as e:
-        log.error("Error refreshing token: %s", e)
+        log.error("Invalid/expired token: %s", e)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido ou expirado"
         ) from e
-
-
-def get_uow(db: Annotated[Session, Depends(get_session)]) -> UoW:
-    return UoW(db)
-
-
-def get_auth_login():
-    return PrestahopClient().login

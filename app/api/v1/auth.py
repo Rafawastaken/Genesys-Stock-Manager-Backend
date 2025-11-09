@@ -1,8 +1,7 @@
+# app/api/v1/auth.py
 from typing import Annotated
-
 from fastapi import APIRouter, Depends
-
-from app.core.deps import require_access_token
+from app.core.deps import require_access_token, get_auth_login
 from app.domains.auth.usecases.login import execute as uc_login
 from app.schemas.auth import LoginRequest, LoginResponse
 
@@ -11,8 +10,8 @@ UserDep = Annotated[dict, Depends(require_access_token)]
 
 
 @router.post("/login", response_model=LoginResponse)
-def post_login(body: LoginRequest):
-    return uc_login(body)
+def post_login(body: LoginRequest, auth_login=Depends(get_auth_login)):
+    return uc_login(body, auth_login=auth_login)
 
 
 @router.get("/me")
