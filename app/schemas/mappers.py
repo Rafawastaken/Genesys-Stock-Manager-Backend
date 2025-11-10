@@ -1,7 +1,12 @@
+from __future__ import annotations
 from datetime import datetime
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from pydantic import BaseModel
+import json
+
+if TYPE_CHECKING:
+    from app.models.feed_mapper import FeedMapper
 
 
 class FeedMapperOut(BaseModel):
@@ -14,6 +19,21 @@ class FeedMapperOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+    @classmethod
+    def from_entity(cls, e: FeedMapper) -> FeedMapperOut:
+        try:
+            profile = json.loads(e.profile_json) if getattr(e, "profile_json", None) else {}
+        except Exception:
+            profile = {}
+        return cls(
+            id=e.id,
+            id_feed=e.id_feed,
+            profile=profile,
+            version=e.version,
+            created_at=e.created_at,
+            updated_at=e.updated_at,
+        )
 
 
 class FeedMapperUpsert(BaseModel):

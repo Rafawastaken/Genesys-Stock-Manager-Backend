@@ -14,19 +14,25 @@ from app.domains.procurement.usecases.mappers.get_by_supplier import (
 from app.domains.procurement.usecases.mappers.get_mapper import execute as uc_get_mapper
 from app.domains.procurement.usecases.mappers.validate_mapper import execute as uc_validate
 from app.infra.uow import UoW
-from app.schemas.mappers import MapperValidateIn, MapperValidateOut
+from app.schemas.mappers import MapperValidateIn, MapperValidateOut, FeedMapperOut
 
 router = APIRouter(prefix="/mappers", tags=["mappers"])
 log = logging.getLogger("gsm.api.mappers")
 UowDep = Annotated[UoW, Depends(get_uow)]
 
 
-@router.get("/feed/{id_feed}", dependencies=[Depends(require_access_token)])
+@router.get(
+    "/feed/{id_feed}", response_model=FeedMapperOut, dependencies=[Depends(require_access_token)]
+)
 def get_mapper(id_feed: int, uow: UowDep):
     return uc_get_mapper(uow, id_feed=id_feed)
 
 
-@router.get("/supplier/{id_supplier}", dependencies=[Depends(require_access_token)])
+@router.get(
+    "/supplier/{id_supplier}",
+    response_model=FeedMapperOut,
+    dependencies=[Depends(require_access_token)],
+)
 def get_mapper_by_supplier(id_supplier: int, uow: UowDep):
     return uc_q_mapper_by_supplier(uow, id_supplier=id_supplier)
 
@@ -36,7 +42,7 @@ def get_mapper_by_supplier(id_supplier: int, uow: UowDep):
     response_model=MapperValidateOut,
     dependencies=[Depends(require_access_token)],
 )
-def validate_mapper(id_feed: int, payload: MapperValidateIn, uow: UowDep):
+def validate_mapper(id_feed: int, *, payload: MapperValidateIn, uow: UowDep):
     return uc_validate(uow, id_feed=id_feed, payload=payload)
 
 
