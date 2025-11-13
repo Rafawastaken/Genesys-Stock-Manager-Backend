@@ -40,7 +40,12 @@ class ProductWriteRepository:
 
     # --- Escrita -------------------------------------------------
     def get_or_create(
-        self, *, gtin: str | None, partnumber: str | None, brand_name: str | None
+        self,
+        *,
+        gtin: str | None,
+        partnumber: str | None,
+        brand_name: str | None,
+        default_margin: float | None,
     ) -> Product:
         if gtin:
             p = self.get_by_gtin(gtin)
@@ -59,7 +64,9 @@ class ProductWriteRepository:
         if not gtin and not (id_brand and partnumber):
             raise InvalidArgument("Missing product key (gtin or brand+mpn)")
 
-        p = Product(gtin=gtin, id_brand=id_brand, partnumber=partnumber)
+        p = Product(
+            gtin=gtin, id_brand=id_brand, partnumber=partnumber, margin=(default_margin or 0.0)
+        )
         self.db.add(p)
         self.db.flush()
         return p

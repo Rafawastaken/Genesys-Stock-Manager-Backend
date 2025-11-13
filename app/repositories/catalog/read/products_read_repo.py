@@ -167,7 +167,34 @@ class ProductsReadRepository:
             )
 
         total = self.db.scalar(select(func.count()).select_from(base.subquery())) or 0
-
         rows = self.db.execute(base.limit(page_size).offset((page - 1) * page_size)).all()
-
         return rows, int(total)
+
+    # Dados de produto individual
+    def get_product_with_names(self, id_product: int):
+        b = aliased(Brand)
+        c = aliased(Category)
+        stmt = (
+            select(
+                Product.id,
+                Product.gtin,
+                Product.id_ecommerce,
+                Product.id_brand,
+                Product.id_category,
+                Product.partnumber,
+                Product.name,
+                Product.description,
+                Product.image_url,
+                Product.weight_str,
+                Product.created_at,
+                Product.updated_at,
+                b.name.label("brand_name"),
+                c.name.label("category_name"),
+            )
+            .select_from(Product)
+            .join(b, b.id == Product.id_brand, isouter=True)
+            .join(c, c.id == Product.id_category, isouter=True)
+            .where(Product.id == id_product)
+        )
+        row = self.db.execute(stmt).first()
+        return row

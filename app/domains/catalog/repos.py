@@ -6,6 +6,7 @@ from app.repositories.catalog.read.category_read_repo import CategoryReadReposit
 from app.repositories.catalog.write.category_write_repo import CategoryWriteRepository
 from app.repositories.catalog.read.products_read_repo import ProductsReadRepository
 from app.repositories.catalog.write.product_write_repo import ProductWriteRepository
+from app.repositories.catalog.read.product_meta_read_repo import ProductMetaReadRepository
 
 __all__ = [
     "BrandsReadRepository",
@@ -14,4 +15,5 @@ __all__ = [
     "CategoryWriteRepository",
     "ProductsReadRepository",
     "ProductWriteRepository",
+    "ProductMetaReadRepository",
 ]

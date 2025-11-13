@@ -62,7 +62,7 @@ def execute(
 
     # 1) Lista produtos via READ repo (sem SQL aqui)
     prod_repo = ProductsReadRepository(db)
-    rows, total = prod_repo.list(
+    rows, total = prod_repo.list_products(
         page=page,
         page_size=page_size,
         q=q,

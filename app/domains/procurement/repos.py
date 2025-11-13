@@ -14,6 +14,7 @@ from app.repositories.procurement.read.supplier_read_repo import SupplierReadRep
 from app.repositories.procurement.write.supplier_write_repo import SupplierWriteRepository
 
 from app.repositories.procurement.write.supplier_item_write_repo import SupplierItemWriteRepository
+from app.repositories.procurement.read.supplier_item_read_repo import SupplierItemReadRepository
 
 
 __all__ = [
@@ -21,12 +22,12 @@ __all__ = [
     "FeedRunWriteRepository",
     "MapperReadRepository",
     "MapperWriteRepository",
-    "SupplierReadRepository",
-    "SupplierItemWriteRepository",
+    "ProductEventReadRepository",
+    "ProductEventWriteRepository",
     "SupplierFeedReadRepository",
     "SupplierFeedWriteRepository",
     "SupplierReadRepository",
     "SupplierWriteRepository",
-    "ProductEventReadRepository",
-    "ProductEventWriteRepository",
+    "SupplierItemWriteRepository",
+    "SupplierItemReadRepository",
 ]

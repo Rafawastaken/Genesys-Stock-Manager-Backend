@@ -22,6 +22,7 @@ from app.domains.procurement.repos import (
     SupplierFeedReadRepository,
     SupplierItemWriteRepository,
 )
+from app.domains.procurement.repos import SupplierReadRepository
 from app.external.feed_downloader import http_download, parse_rows_json
 from app.infra.uow import UoW
 
@@ -74,6 +75,10 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
     # repos (CQRS)
     run_r = FeedRunReadRepository(uow.db)
     run_w = FeedRunWriteRepository(uow.db)
+
+    sup_r = SupplierReadRepository(uow.db)
+    supplier = sup_r.get_required(id_supplier)
+    supplier_margin = float(supplier.margin or 0.0)
 
     feed_r = SupplierFeedReadRepository(uow.db)
     mapper_r = MapperReadRepository(uow.db)
@@ -129,7 +134,7 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
         log.info("[run=%s] fetched rows: total=%s using=%s", id_run, total, len(rows))
 
         # mapping
-        profile = mapper_r.get_profile(feed.id)  # devolve {} se não existir/ inválido
+        profile = mapper_r.profile_for_feed(feed.id)  # devolve {} se não existir/ inválido
         engine = IngestEngine(profile)
 
         ok = bad = changed = 0
@@ -154,7 +159,9 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
             category_name = normalize_simple(raw_category_name) if raw_category_name else None
 
             try:
-                p = prod_w.get_or_create(gtin=gtin, partnumber=pn, brand_name=brand_name)
+                p = prod_w.get_or_create(
+                    gtin=gtin, partnumber=pn, brand_name=brand_name, default_margin=supplier_margin
+                )
             except InvalidArgument:
                 bad += 1
                 log.warning("[run=%s] row#%s skipped (no product key)", id_run, idx)

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.core.deps import get_uow, require_access_token
 from app.domains.catalog.usecases.products.list_products import execute as uc_q_list_products
+from app.domains.catalog.usecases.products.get_product_detail import execute as uc_q_product_detail
 from app.infra.uow import UoW
 
 router = APIRouter(prefix="/products", tags=["products"])
@@ -46,4 +47,30 @@ def list_products(
         id_supplier=id_supplier,
         sort=sort,
         expand_offers=expand_offers,
+    )
+
+
+@router.get(
+    "/{id_product}",
+    dependencies=[Depends(require_access_token)],
+)
+def get_product_detail(
+    id_product: int,
+    expand_meta: bool = Query(True),
+    expand_offers: bool = Query(True),
+    expand_events: bool = Query(True),
+    events_days: int | None = Query(90, ge=1, le=3650),
+    events_limit: int | None = Query(2000, ge=1, le=100000),
+    aggregate_daily: bool = Query(True),
+    uow: UoW = Depends(get_uow),
+):
+    return uc_q_product_detail(
+        uow,
+        id_product=id_product,
+        expand_meta=expand_meta,
+        expand_offers=expand_offers,
+        expand_events=expand_events,
+        events_days=events_days,
+        events_limit=events_limit,
+        aggregate_daily=aggregate_daily,
     )

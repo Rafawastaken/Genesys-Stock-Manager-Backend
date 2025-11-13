@@ -1,69 +1,74 @@
 from __future__ import annotations
-
+from typing import Any
 from collections.abc import Sequence
-from sqlalchemy import func, select, and_
+
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.errors import NotFound
-from app.core.normalize import normalize_key_ci
-from app.models.supplier import Supplier
-
-MAX_NAME_LEN = 200
+from app.models.supplier_item import SupplierItem as SI
+from app.models.supplier_feed import SupplierFeed as SF
+from app.models.supplier import Supplier as S
 
 
 class SupplierItemReadRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get(self, id_supplier: int) -> Supplier | None:
-        return self.db.get(Supplier, id_supplier)
+    def list_offers_for_product_ids(
+        self,
+        product_ids: Sequence[int],
+        only_in_stock: bool = False,
+    ) -> list[dict[str, Any]]:
+        """
+        Devolve as ofertas (SupplierItem) para uma lista de products,
+        já com join ao SupplierFeed/Supplier para nome/logo do fornecedor.
+        """
+        if not product_ids:
+            return []
 
-    def get_required(self, id_supplier: int) -> Supplier:
-        e = self.get(id_supplier)
-        if not e:
-            raise NotFound("Supplier not found")
-        return e
-
-    def get_by_name(self, name: str) -> Supplier | None:
-        key = normalize_key_ci(name, MAX_NAME_LEN)
-        if not key:
-            return None
-        return (
-            self.db.execute(
-                select(Supplier).where(func.lower(func.btrim(Supplier.name)) == key).limit(1)
+        q = (
+            select(
+                SI.id_product.label("id_product"),
+                SI.id_feed.label("id_feed"),
+                SF.id_supplier.label("id_supplier"),
+                S.name.label("supplier_name"),
+                S.logo_image.label("supplier_image"),
+                SI.sku.label("sku"),
+                SI.price.label("price"),
+                SI.stock.label("stock"),
+                SI.id_feed_run.label("id_last_seen_run"),
+                SI.updated_at.label("updated_at"),
             )
-            .scalars()
-            .first()
+            .join(SF, SF.id == SI.id_feed)
+            .join(S, S.id == SF.id_supplier)
+            .where(SI.id_product.in_(list(product_ids)))
         )
 
-    def search_paginated(
-        self, search: str | None, page: int, page_size: int
-    ) -> tuple[Sequence[Supplier], int]:
-        page = max(1, page)
-        page_size = max(1, min(page_size, 100))
+        if only_in_stock:
+            q = q.where(SI.stock > 0)
 
-        stmt = select(Supplier)
-        filters = []
-        if search:
-            like = f"%{search.strip()}%"
-            filters.append(func.btrim(Supplier.name).ilike(like))
-        if filters:
-            stmt = stmt.where(and_(*filters))
+        return [dict(r._mapping) for r in self.db.execute(q).all()]
 
-        total = (
-            self.db.scalar(
-                (select(func.count()).select_from(Supplier).where(and_(*filters)))
-                if filters
-                else (select(func.count()).select_from(Supplier))
+    def list_offers_for_product(
+        self, id_product: int, *, only_in_stock: bool = False
+    ) -> list[dict[str, Any]]:
+        q = (
+            select(
+                SI.id_product.label("id_product"),
+                SI.id_feed.label("id_feed"),
+                SF.id_supplier.label("id_supplier"),
+                S.name.label("supplier_name"),
+                S.logo_image.label("supplier_image"),
+                SI.sku.label("sku"),
+                SI.price.label("price"),
+                SI.stock.label("stock"),
+                SI.id_feed_run.label("id_last_seen_run"),
+                SI.updated_at.label("updated_at"),
             )
-            or 0
+            .join(SF, SF.id == SI.id_feed)
+            .join(S, S.id == SF.id_supplier)
+            .where(SI.id_product == id_product)
         )
-
-        # Ordenação estável por nome CI + id
-        stmt = stmt.order_by(
-            func.lower(func.btrim(Supplier.name)).asc(),
-            Supplier.id.asc(),
-        )
-
-        rows = self.db.execute(stmt.limit(page_size).offset((page - 1) * page_size)).scalars().all()
-        return rows, int(total)
+        if only_in_stock:
+            q = q.where(SI.stock > 0)
+        return [dict(r._mapping) for r in self.db.execute(q).all()]

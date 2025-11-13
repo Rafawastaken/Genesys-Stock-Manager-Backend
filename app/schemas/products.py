@@ -1,7 +1,8 @@
 # app/schemas/products.py
+from __future__ import annotations
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class OfferOut(BaseModel):
@@ -41,3 +42,45 @@ class ProductListOut(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# --------------------------
+
+
+class ProductMetaOut(BaseModel):
+    name: str
+    value: str
+
+
+class ProductEventOut(BaseModel):
+    ts: datetime = Field(..., alias="created_at")
+    reason: str
+    price: str | None = None
+    stock: int | None = None
+    id_supplier: int | None = None
+    supplier_name: str | None = None
+    id_feed_run: int | None = None
+
+
+class SeriesPointOut(BaseModel):
+    date: datetime  # dia (00:00) ou timestamp consolidado do dia
+    price: str | None = None
+    stock: int | None = None
+
+
+class ProductStatsOut(BaseModel):
+    first_seen: datetime | None = None
+    last_seen: datetime | None = None
+    suppliers_count: int = 0
+    offers_in_stock: int = 0
+    last_change_at: datetime | None = None
+
+
+class ProductDetailOut(BaseModel):
+    product: ProductOut
+    meta: list[ProductMetaOut] = []
+    offers: list = []
+    best_offer: object | None = None
+    stats: ProductStatsOut
+    events: list[ProductEventOut] | None = None
+    series_daily: list[SeriesPointOut] | None = None
