@@ -1,17 +1,32 @@
-# Reexporta os repositórios atuais sob o namespace de domínio `procurement`.
+from app.repositories.procurement.read.feed_run_read_repo import FeedRunReadRepository
+from app.repositories.procurement.write.feed_run_write_repo import FeedRunWriteRepository
 
-from app.repositories.feed_run_repo import FeedRunRepository
-from app.repositories.mapper_repo import MapperRepository
-from app.repositories.product_event_repo import ProductEventRepository
-from app.repositories.supplier_feed_repo import SupplierFeedRepository
-from app.repositories.supplier_item_repo import SupplierItemRepository
-from app.repositories.supplier_repo import SupplierRepository
+from app.repositories.procurement.read.mapper_read_repo import MapperReadRepository
+from app.repositories.procurement.write.mapper_write_repo import MapperWriteRepository
+
+from app.repositories.procurement.read.product_event_read_repo import ProductEventReadRepository
+from app.repositories.procurement.write.product_event_write_repo import ProductEventWriteRepository
+
+from app.repositories.procurement.read.supplier_feed_read_repo import SupplierFeedReadRepository
+from app.repositories.procurement.write.supplier_feed_write_repo import SupplierFeedWriteRepository
+
+from app.repositories.procurement.read.supplier_read_repo import SupplierReadRepository
+from app.repositories.procurement.write.supplier_write_repo import SupplierWriteRepository
+
+from app.repositories.procurement.write.supplier_item_write_repo import SupplierItemWriteRepository
+
 
 __all__ = [
-    "FeedRunRepository",
-    "MapperRepository",
-    "SupplierItemRepository",
-    "SupplierFeedRepository",
-    "SupplierRepository",
-    "ProductEventRepository",
+    "FeedRunReadRepository",
+    "FeedRunWriteRepository",
+    "MapperReadRepository",
+    "MapperWriteRepository",
+    "SupplierReadRepository",
+    "SupplierItemWriteRepository",
+    "SupplierFeedReadRepository",
+    "SupplierFeedWriteRepository",
+    "SupplierReadRepository",
+    "SupplierWriteRepository",
+    "ProductEventReadRepository",
+    "ProductEventWriteRepository",
 ]

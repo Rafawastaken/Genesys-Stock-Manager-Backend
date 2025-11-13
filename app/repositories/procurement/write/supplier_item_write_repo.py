@@ -1,15 +1,12 @@
+# app/repositories/write/procurement/supplier_item_write_repo.py
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Sequence
 from typing import Any
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import InvalidArgument
-from app.models.supplier import Supplier
-from app.models.supplier_feed import SupplierFeed
 from app.models.supplier_item import SupplierItem
 
 
@@ -18,7 +15,7 @@ def _mk_fp(*parts: Any) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-class SupplierItemRepository:
+class SupplierItemWriteRepository:
     def __init__(self, db: Session):
         self.db = db
 
@@ -39,7 +36,8 @@ class SupplierItemRepository:
             raise InvalidArgument("SKU is empty")
 
         stmt = select(SupplierItem).where(
-            SupplierItem.id_feed == id_feed, SupplierItem.sku == sku_norm
+            SupplierItem.id_feed == id_feed,
+            SupplierItem.sku == sku_norm,
         )
         item = self.db.scalar(stmt)
 
@@ -74,7 +72,6 @@ class SupplierItemRepository:
                 or (item.gtin != gtin)
                 or (item.partnumber != partnumber)
             )
-
             item.id_product = id_product
             item.gtin = gtin
             item.partnumber = partnumber
@@ -85,33 +82,3 @@ class SupplierItemRepository:
 
         self.db.flush()
         return item, created, changed, old_price, old_stock
-
-    def list_offers_for_product_ids(
-        self, product_ids: Sequence[int], only_in_stock: bool = False
-    ) -> list[dict[str, Any]]:
-        si = SupplierItem
-        sf = SupplierFeed
-        s = Supplier
-
-        q = (
-            select(
-                si.id_product.label("id_product"),
-                si.id_feed.label("id_feed"),
-                sf.id_supplier.label("id_supplier"),
-                s.name.label("supplier_name"),
-                s.logo_image.label("supplier_image"),
-                si.sku.label("sku"),
-                si.price.label("price"),
-                si.stock.label("stock"),
-                si.id_feed_run.label("id_last_seen_run"),
-                si.updated_at.label("updated_at"),
-            )
-            .join(sf, sf.id == si.id_feed)
-            .join(s, s.id == sf.id_supplier)
-            .where(si.id_product.in_(list(product_ids)))
-        )
-
-        if only_in_stock:
-            q = q.where(si.stock > 0)
-
-        return [dict(r._mapping) for r in self.db.execute(q).all()]

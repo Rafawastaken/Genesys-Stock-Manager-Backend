@@ -2,13 +2,13 @@
 from __future__ import annotations
 
 from app.core.errors import NotFound
-from app.domains.procurement.repos import SupplierFeedRepository
+from app.domains.procurement.repos import SupplierFeedReadRepository
 from app.infra.uow import UoW
 from app.schemas.feeds import SupplierFeedOut
 
 
 def execute(uow: UoW, *, id_supplier: int) -> SupplierFeedOut:
-    repo = SupplierFeedRepository(uow.db)
+    repo = SupplierFeedReadRepository(uow.db)
     e = repo.get_by_supplier(id_supplier)
     if not e:
         raise NotFound("Feed not found")

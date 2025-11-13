@@ -5,24 +5,25 @@ import csv
 import io
 import json
 import logging
+from contextlib import suppress
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
 
-from app.core.errors import InvalidArgument, NotFound  # << NOVO
+from app.core.errors import InvalidArgument, NotFound
 from app.core.normalize import normalize_images, normalize_simple
-from app.domains.catalog.repos import ProductRepository
+from app.domains.catalog.repos import ProductWriteRepository
 from app.domains.mapping.engine import IngestEngine
 from app.domains.procurement.repos import (
-    FeedRunRepository,
-    MapperRepository,
-    ProductEventRepository,
-    SupplierFeedRepository,
-    SupplierItemRepository,
+    FeedRunReadRepository,
+    FeedRunWriteRepository,
+    MapperReadRepository,
+    ProductEventWriteRepository,
+    SupplierFeedReadRepository,
+    SupplierItemWriteRepository,
 )
 from app.external.feed_downloader import http_download, parse_rows_json
 from app.infra.uow import UoW
-from contextlib import suppress
 
 log = logging.getLogger("gsm.ingest")
 
@@ -42,7 +43,6 @@ CANON_OFFER_KEYS = {"price", "stock", "sku"}
 
 
 def _decode_csv(raw: bytes, delimiter: str = ",") -> list[dict]:
-    """Convert CSV bytes into list[dict] (utf-8; ignore errors)."""
     text = raw.decode("utf-8", errors="ignore")
     reader = csv.DictReader(io.StringIO(text), delimiter=(delimiter or ","))
     return [{k: (v if v is not None else "") for k, v in row.items()} for row in reader]
@@ -71,22 +71,24 @@ def _split_payload(mapped: dict[str, Any]):
 
 
 async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> dict[str, Any]:
-    # repositories
-    run_repo = FeedRunRepository(uow.db)
-    feed_repo = SupplierFeedRepository(uow.db)
-    mapper_repo = MapperRepository(uow.db)
-    prod_repo = ProductRepository(uow.db)
-    item_repo = SupplierItemRepository(uow.db)
-    ev_repo = ProductEventRepository(uow.db)
+    # repos (CQRS)
+    run_r = FeedRunReadRepository(uow.db)
+    run_w = FeedRunWriteRepository(uow.db)
 
-    # validate supplier feed
-    feed = feed_repo.get_by_supplier(id_supplier)
+    feed_r = SupplierFeedReadRepository(uow.db)
+    mapper_r = MapperReadRepository(uow.db)
+
+    prod_w = ProductWriteRepository(uow.db)
+    item_w = SupplierItemWriteRepository(uow.db)
+    ev_w = ProductEventWriteRepository(uow.db)
+
+    # valida feed do supplier
+    feed = feed_r.get_by_supplier(id_supplier)
     if not feed or not feed.active:
-        # era HTTPException(404) → agora AppError tratado pelo middleware
         raise NotFound("Feed not found for supplier")
 
-    # start run
-    run = run_repo.start(id_feed=feed.id)
+    # inicia run
+    run = run_w.start(id_feed=feed.id)
     id_run = run.id
     log.info(
         "[run=%s] start ingest id_supplier=%s id_feed=%s format=%s url=%s",
@@ -101,23 +103,23 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
         # download
         headers = json.loads(feed.headers_json) if feed.headers_json else None
         params = json.loads(feed.params_json) if feed.params_json else None
+
         status_code, content_type, raw = await http_download(
             feed.url, headers=headers, params=params, timeout_s=60
         )
 
         if status_code < 200 or status_code >= 300:
-            run_repo.finalize_http_error(
+            run_w.finalize_http_error(
                 id_run, http_status=status_code, error_msg=f"HTTP {status_code}"
             )
             uow.commit()
             log.error("[run=%s] download error: HTTP %s", id_run, status_code)
             return {"ok": False, "id_run": id_run, "error": f"HTTP {status_code}"}
 
-        # parse rows
+        # parse
         fmt = (feed.format or "").lower()
-        rows: list[dict]
         if fmt == "json":
-            rows = parse_rows_json(raw)
+            rows: list[dict] = parse_rows_json(raw)
         else:
             rows = _decode_csv(raw, delimiter=(feed.csv_delimiter or ","))
 
@@ -126,8 +128,8 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
             rows = rows[:limit]
         log.info("[run=%s] fetched rows: total=%s using=%s", id_run, total, len(rows))
 
-        # mapping engine
-        profile = mapper_repo.get_profile(feed.id)
+        # mapping
+        profile = mapper_r.get_profile(feed.id)  # devolve {} se não existir/ inválido
         engine = IngestEngine(profile)
 
         ok = bad = changed = 0
@@ -140,7 +142,6 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
                 continue
 
             mapped = normalize_images(mapped)
-
             product_payload, offer_payload, meta_payload = _split_payload(mapped)
 
             gtin = product_payload.get("gtin") or None
@@ -153,19 +154,18 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
             category_name = normalize_simple(raw_category_name) if raw_category_name else None
 
             try:
-                p = prod_repo.get_or_create(gtin=gtin, partnumber=pn, brand_name=brand_name)
+                p = prod_w.get_or_create(gtin=gtin, partnumber=pn, brand_name=brand_name)
             except InvalidArgument:
-                # era ValueError → agora InvalidArgument do nosso domínio
                 bad += 1
                 log.warning("[run=%s] row#%s skipped (no product key)", id_run, idx)
                 continue
             except IntegrityError as ie:
-                # race/unique — short rollback and try to fetch
+                # race/unique — tenta recuperar
                 uow.db.rollback()
-                p = prod_repo.get_by_gtin(gtin) if gtin else None
+                p = prod_w.get_by_gtin(gtin) if gtin else None
                 if not p and (brand_name and pn):
                     try:
-                        p = prod_repo.get_or_create(gtin=None, partnumber=pn, brand_name=brand_name)
+                        p = prod_w.get_or_create(gtin=None, partnumber=pn, brand_name=brand_name)
                     except Exception:
                         p = None
                 if not p:
@@ -173,8 +173,8 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
                     log.warning("[run=%s] row#%s skipped after IntegrityError: %s", id_run, idx, ie)
                     continue
 
-            # fill canonicals if empty + associate brand/category if missing
-            prod_repo.fill_canonicals_if_empty(
+            # canonicals se vazios + associa brand/category se faltarem
+            prod_w.fill_canonicals_if_empty(
                 p.id,
                 name=product_payload.get("name"),
                 description=product_payload.get("description"),
@@ -184,26 +184,26 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
                 partnumber=pn,
                 gtin=gtin,
             )
-            prod_repo.fill_brand_category_if_empty(
+            prod_w.fill_brand_category_if_empty(
                 p.id,
                 brand_name=brand_name,
                 category_name=category_name,
             )
 
-            # non-canonical meta: insert-if-missing (no images)
+            # meta não-canónica
             for k, v in meta_payload.items():
                 if v in (None, "", []):
                     continue
-                inserted, conflict = prod_repo.add_meta_if_missing(p.id, name=str(k), value=str(v))
+                inserted, _conflict = prod_w.add_meta_if_missing(p.id, name=str(k), value=str(v))
                 if inserted:
                     changed += 1
 
-            # supplier offer upsert ((id_feed, sku) + internal fingerprint)
+            # upsert da oferta do fornecedor
             price = offer_payload["price"]
             stock = offer_payload["stock"]
             sku = offer_payload["sku"] or (pn or gtin or f"row-{idx}")
 
-            item, created, changed_item, old_price, old_stock = item_repo.upsert(
+            _item, created, changed_item, old_price, old_stock = item_w.upsert(
                 id_feed=feed.id,
                 id_product=p.id,
                 sku=sku,
@@ -214,8 +214,8 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
                 id_feed_run=id_run,
             )
 
-            # 1 line decides the event:
-            changed += ev_repo.record_from_item_change(
+            # evento por criação/alteração
+            changed += ev_w.record_from_item_change(
                 id_product=p.id,
                 id_supplier=id_supplier,
                 gtin=gtin,
@@ -227,18 +227,17 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
             )
 
             ok += 1
-
             if idx % 500 == 0:
                 log.info("[run=%s] progress %s/%s ok=%s bad=%s", id_run, idx, len(rows), ok, bad)
 
-        # mark EOL for unseen items this run
-        eol_marked = ev_repo.mark_eol_for_unseen_items(
+        # EOL dos itens não vistos neste run
+        eol_marked = ev_w.mark_eol_for_unseen_items(
             id_feed=feed.id, id_supplier=id_supplier, id_feed_run=id_run
         )
         log.info("[run=%s] EOL marked=%s", id_run, eol_marked)
 
-        # finalize run
-        run_repo.finalize_ok(
+        # finaliza
+        run_w.finalize_ok(
             id_run,
             rows_total=total,
             rows_changed=changed,
@@ -246,7 +245,7 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
         )
         uow.commit()
 
-        status = run_repo.get(id_run).status  # return to caller
+        status = (run_r.get(id_run) or run).status
         log.info(
             "[run=%s] done status=%s total=%s ok=%s bad=%s changed=%s eol=%s",
             id_run,
@@ -271,17 +270,13 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
         }
 
     except Exception as e:
-        # rollback and try to mark run as error
         with suppress(Exception):
             uow.db.rollback()
-
         try:
-            run_repo.finalize_error(id_run, error_msg=f"{type(e).__name__}: {e}")
+            run_w.finalize_error(id_run, error_msg=f"{type(e).__name__}: {e}")
             uow.commit()
         except Exception:
-            # se falhar a finalização, tentar rollback mas sem ruído
             with suppress(Exception):
                 uow.db.rollback()
-
         log.exception("[run=%s] ingest failed", id_run)
         return {"ok": False, "id_run": id_run, "error": str(e)}

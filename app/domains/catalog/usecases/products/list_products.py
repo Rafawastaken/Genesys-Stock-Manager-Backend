@@ -1,17 +1,11 @@
+# app/domains/catalog/usecases/products/list_products.py
 from __future__ import annotations
-
 from decimal import Decimal, InvalidOperation
+from collections.abc import Iterable
 
-from sqlalchemy import func, select, and_
-from sqlalchemy.orm import aliased
-
-from app.domains.procurement.repos import SupplierItemRepository
 from app.infra.uow import UoW
-from app.models.brand import Brand
-from app.models.category import Category
-from app.models.product import Product
-from app.models.supplier_feed import SupplierFeed
-from app.models.supplier_item import SupplierItem
+from app.domains.catalog.repos import ProductsReadRepository
+from app.domains.procurement.repos import SupplierItemReadRepository
 from app.schemas.products import OfferOut, ProductListOut, ProductOut
 
 
@@ -23,7 +17,6 @@ def _as_decimal(s: str | None) -> Decimal | None:
         return None
     try:
         if "," in raw and "." in raw:
-            # Se a última vírgula vem depois do último ponto → vírgula é decimal (formato PT)
             if raw.rfind(",") > raw.rfind("."):
                 raw = raw.replace(".", "").replace(",", ".")
             else:
@@ -35,13 +28,8 @@ def _as_decimal(s: str | None) -> Decimal | None:
         return None
 
 
-def _best_offer(offers: list[OfferOut]) -> OfferOut | None:
-    """
-    Choose the lowest-price offer WITH stock.
-    If no offer has stock > 0, return None.
-    """
-    best = None
-    best_price = None
+def _best_offer(offers: Iterable[OfferOut]) -> OfferOut | None:
+    best, best_price = None, None
     for o in offers:
         if (o.stock or 0) <= 0:
             continue
@@ -67,79 +55,44 @@ def execute(
     category: str | None = None,
     has_stock: bool | None = None,
     id_supplier: int | None = None,
-    sort: str = "recent",  # "recent" | "name" | "cheapest"
-    expand_offers: bool = True,  # <— NOVO
+    sort: str = "recent",  # "recent" | "name" | "cheapest" (repo trata disto)
+    expand_offers: bool = True,
 ) -> ProductListOut:
     db = uow.db
-    b = aliased(Brand)
-    c = aliased(Category)
-    si = aliased(SupplierItem)
-    sf = aliased(SupplierFeed)
 
-    base = (
-        select(
-            Product.id,
-            Product.gtin,
-            Product.id_ecommerce,
-            Product.id_brand,
-            Product.id_category,
-            Product.partnumber,
-            Product.name,
-            Product.description,
-            Product.image_url,
-            Product.weight_str,
-            Product.created_at,
-            Product.updated_at,
-            b.name.label("brand_name"),
-            c.name.label("category_name"),
-        )
-        .select_from(Product)
-        .join(b, b.id == Product.id_brand, isouter=True)
-        .join(c, c.id == Product.id_category, isouter=True)
+    # 1) Lista produtos via READ repo (sem SQL aqui)
+    prod_repo = ProductsReadRepository(db)
+    rows, total = prod_repo.list(
+        page=page,
+        page_size=page_size,
+        q=q,
+        gtin=gtin,
+        partnumber=partnumber,
+        id_brand=id_brand,
+        brand=brand,
+        id_category=id_category,
+        category=category,
+        has_stock=has_stock,
+        id_supplier=id_supplier,
+        sort=sort,
     )
 
-    # ... (mesmos filtros que já tens)
-
-    # Ordenação
-    if sort == "name":
-        base = base.order_by(Product.name.asc().nulls_last())
-    elif sort == "cheapest":
-        # menor preço entre ofertas com stock>0; NULLS LAST para quem não tem preço com stock
-        min_price_with_stock = (
-            select(func.min(si.price))
-            .select_from(si)
-            .join(sf, sf.id == si.id_feed)
-            .where(and_(si.id_product == Product.id, si.stock > 0, si.price.isnot(None)))
-            .correlate(Product)
-            .scalar_subquery()
-        )
-        base = base.order_by(
-            min_price_with_stock.is_(None), min_price_with_stock.asc(), Product.id.asc()
-        )
-    else:
-        base = base.order_by(Product.updated_at.desc().nulls_last(), Product.created_at.desc())
-
-    total = db.scalar(select(func.count()).select_from(base.subquery())) or 0
-
-    page = max(1, page)
-    page_size = max(1, min(page_size, 100))
-    offset = (page - 1) * page_size
-
-    rows = db.execute(base.limit(page_size).offset(offset)).all()
     if not rows:
         return ProductListOut(items=[], total=int(total), page=page, page_size=page_size)
 
-    ids = [r.id for r in rows]
+    # 2) Mapear rows → ProductOut (campos agregados brand_name/category_name já vêm do repo)
     items_map: dict[int, ProductOut] = {}
+    ids: list[int] = []
     for r in rows:
+        ids.append(r.id)
         items_map[r.id] = ProductOut(
             id=r.id,
             gtin=r.gtin,
             id_ecommerce=r.id_ecommerce,
             id_brand=r.id_brand,
-            brand_name=r.brand_name,
+            brand_name=getattr(r, "brand_name", None),
             id_category=r.id_category,
-            category_name=r.category_name,
+            category_name=getattr(r, "category_name", None),
             partnumber=r.partnumber,
             name=r.name,
             description=r.description,
@@ -147,15 +100,12 @@ def execute(
             weight_str=r.weight_str,
             created_at=r.created_at,
             updated_at=r.updated_at,
-            offers=[],
-            best_offer=None,
         )
 
-    # 2) expand_offers → permite poupar payload quando não precisas das ofertas
+    # 3) Opcionalmente expandir ofertas via Procurement READ repo
     if expand_offers:
-        si_repo = SupplierItemRepository(db)
+        si_repo = SupplierItemReadRepository(db)
         offers_raw = si_repo.list_offers_for_product_ids(ids, only_in_stock=False)
-
         for o in offers_raw:
             offer = OfferOut(
                 id_supplier=o["id_supplier"],
@@ -170,7 +120,7 @@ def execute(
             )
             items_map[o["id_product"]].offers.append(offer)
 
-    # best_offer continua a usar “stock>0”
+    # 4) best_offer (stock > 0)
     for po in items_map.values():
         po.best_offer = _best_offer(po.offers) if po.offers else None
 

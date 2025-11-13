@@ -10,10 +10,10 @@ from app.models.category import Category
 from app.core.normalize import normalize_simple, normalize_key_ci
 
 
-MAX_NAME_LEN = 900
+MAX_NAME_LEN = 300
 
 
-class CategoryRepository:
+class CategoryReadRepository:
     def __init__(self, db: Session):
         self.db = db
 

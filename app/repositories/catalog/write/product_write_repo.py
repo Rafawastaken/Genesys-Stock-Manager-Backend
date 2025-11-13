@@ -1,19 +1,29 @@
-# app/repositories/product_repo.py
 from __future__ import annotations
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import InvalidArgument
-from app.domains.catalog.repos import BrandRepository, CategoryRepository
 from app.models.product import Product
 from app.models.product_meta import ProductMeta
 
+# Importes de write repos para garantir criação de brand/category quando em falta.
+# (usa import local para evitar ciclos, se necessário)
+from app.repositories.catalog.write.brand_write_repo import BrandsWriteRepository
+from app.repositories.catalog.write.category_write_repo import CategoryWriteRepository
 
-class ProductRepository:
+
+class ProductWriteRepository:
+    """
+    Operações de escrita/manutenção de produtos.
+    (Herda implicitamente a possibilidade de fazer lookups simples, mas
+    deixamos os lookups mais ricos no read repo.)
+    """
+
     def __init__(self, db: Session):
         self.db = db
 
+    # --- Lookups mínimos usados por writes (opcional) ------------
     def get(self, id_product: int) -> Product | None:
         return self.db.get(Product, id_product)
 
@@ -28,6 +38,7 @@ class ProductRepository:
         stmt = select(Product).where(Product.id_brand == id_brand, Product.partnumber == partnumber)
         return self.db.scalar(stmt)
 
+    # --- Escrita -------------------------------------------------
     def get_or_create(
         self, *, gtin: str | None, partnumber: str | None, brand_name: str | None
     ) -> Product:
@@ -38,8 +49,7 @@ class ProductRepository:
 
         id_brand = None
         if brand_name:
-            b_repo = BrandRepository(self.db)
-            id_brand = b_repo.get_or_create(brand_name).id
+            id_brand = BrandsWriteRepository(self.db).get_or_create(brand_name).id
 
         if id_brand and partnumber:
             p = self.get_by_brand_mpn(id_brand, partnumber)
@@ -77,10 +87,10 @@ class ProductRepository:
             return
         changed = False
         if brand_name and not p.id_brand:
-            p.id_brand = BrandRepository(self.db).get_or_create(brand_name).id
+            p.id_brand = BrandsWriteRepository(self.db).get_or_create(brand_name).id
             changed = True
         if category_name and not p.id_category:
-            p.id_category = CategoryRepository(self.db).get_or_create(category_name).id
+            p.id_category = CategoryWriteRepository(self.db).get_or_create(category_name).id
             changed = True
         if changed:
             self.db.add(p)
@@ -94,7 +104,7 @@ class ProductRepository:
         )
         if row is None:
             self.db.add(ProductMeta(id_product=id_product, name=name, value=value))
-            # flush opcional se precisares do id
+            # flush só se precisares do id
             return True, False
         else:
             return (False, (row.value or "") != (value or ""))

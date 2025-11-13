@@ -4,7 +4,7 @@ from __future__ import annotations
 from sqlalchemy.exc import IntegrityError
 
 from app.core.errors import BadRequest, Conflict, InvalidArgument  # << usa AppErrors
-from app.domains.procurement.repos import SupplierRepository
+from app.domains.procurement.repos import SupplierWriteRepository
 from app.infra.uow import UoW
 from app.models.supplier import Supplier
 from app.schemas.suppliers import SupplierCreate
@@ -21,7 +21,7 @@ def execute(uow: UoW, *, data: SupplierCreate) -> Supplier:
     if not name:
         raise InvalidArgument("Supplier name is required")
 
-    repo = SupplierRepository(uow.db)
+    repo = SupplierWriteRepository(uow.db)
 
     try:
         create = getattr(repo, "create", None)

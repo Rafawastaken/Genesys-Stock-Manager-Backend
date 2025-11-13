@@ -7,7 +7,7 @@ from app.models.product_supplier_event import ProductSupplierEvent
 from app.models.supplier_item import SupplierItem
 
 
-class ProductEventRepository:
+class ProductEventWriteRepository:
     def __init__(self, db: Session):
         self.db = db
 
@@ -23,7 +23,10 @@ class ProductEventRepository:
         changed: bool,
         id_feed_run: int,
     ) -> int:
-        """Regista evento apenas se houve criação ou alteração."""
+        """
+        Regista evento apenas se houve criação ou alteração do SupplierItem.
+        Não faz flush/commit; o UoW decide.
+        """
         if not (created or changed):
             return 0
 
@@ -39,12 +42,14 @@ class ProductEventRepository:
                 reason=reason,
             )
         )
-        # sem flush/commit aqui
         return 1
 
     def mark_eol_for_unseen_items(self, *, id_feed: int, id_supplier: int, id_feed_run: int) -> int:
-        """Marca EOL para itens desse feed não vistos neste run."""
-        unseen = self.db.scalars(
+        """
+        Marca EOL (End-Of-Life) para itens desse feed que **não foram vistos** neste run.
+        Nota: há uma leitura auxiliar a SupplierItem para suportar a escrita dos eventos.
+        """
+        unseen_items = self.db.scalars(
             select(SupplierItem).where(
                 SupplierItem.id_feed == id_feed,
                 SupplierItem.id_feed_run != id_feed_run,
@@ -52,7 +57,7 @@ class ProductEventRepository:
         ).all()
 
         count = 0
-        for it in unseen:
+        for it in unseen_items:
             self.db.add(
                 ProductSupplierEvent(
                     id_product=it.id_product,

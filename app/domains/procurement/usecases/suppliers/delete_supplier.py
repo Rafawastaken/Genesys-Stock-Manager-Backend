@@ -4,12 +4,12 @@ from __future__ import annotations
 from sqlalchemy.exc import IntegrityError
 
 from app.core.errors import BadRequest, Conflict, NotFound
-from app.domains.procurement.repos import SupplierRepository
+from app.domains.procurement.repos import SupplierWriteRepository
 from app.infra.uow import UoW
 
 
 def execute(uow: UoW, *, id_supplier: int) -> None:
-    repo = SupplierRepository(uow.db)
+    repo = SupplierWriteRepository(uow.db)
 
     supplier = repo.get(id_supplier)
     if not supplier:

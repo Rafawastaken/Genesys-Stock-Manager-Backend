@@ -5,9 +5,9 @@ import json
 
 from app.core.errors import NotFound  # << usar AppError
 from app.domains.procurement.repos import (
-    MapperRepository,
-    SupplierFeedRepository,
-    SupplierRepository,
+    MapperReadRepository,
+    SupplierFeedReadRepository,
+    SupplierReadRepository,
 )
 from app.infra.uow import UoW
 from app.schemas.feeds import SupplierFeedOut
@@ -73,9 +73,9 @@ def _mapper_to_out(m) -> FeedMapperOut | None:
 
 
 def execute(uow: UoW, *, id_supplier: int) -> SupplierDetailOut:
-    sup_repo = SupplierRepository(uow.db)
-    feed_repo = SupplierFeedRepository(uow.db)
-    map_repo = MapperRepository(uow.db)
+    sup_repo = SupplierReadRepository(uow.db)
+    feed_repo = SupplierFeedReadRepository(uow.db)
+    map_repo = MapperReadRepository(uow.db)
 
     s = sup_repo.get(id_supplier)
     if not s:

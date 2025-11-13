@@ -2,7 +2,7 @@
 from __future__ import annotations
 import json
 
-from app.domains.procurement.repos import SupplierFeedRepository
+from app.domains.procurement.repos import SupplierFeedWriteRepository
 from app.infra.uow import UoW
 from app.schemas.feeds import SupplierFeedCreate, SupplierFeedUpdate, SupplierFeedOut
 
@@ -32,7 +32,7 @@ def execute(
         if getattr(data, "auth", None) is not None:
             e.auth_json = None if data.auth is None else json.dumps(data.auth, ensure_ascii=False)
 
-    repo = SupplierFeedRepository(uow.db)
+    repo = SupplierFeedWriteRepository(uow.db)
     entity = repo.upsert_for_supplier(id_supplier, mutate)
     uow.commit()
     return SupplierFeedOut.from_entity(entity)
