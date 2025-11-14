@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     JWT_SECRET: str = "random-jwt"
     JWT_EXPIRE_MIN: int = 120
     JWT_REFRESH_EXPIRE_MIN: int = 43200
+    # Feed
+    FEED_DOWNLOAD_TIMEOUT: int = 60
     # Prestashop
     PS_AUTH_VALIDATE_URL: str
     PS_GENESYS_KEY: str
