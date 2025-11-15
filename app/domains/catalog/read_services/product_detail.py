@@ -1,0 +1,141 @@
+# app/domains/catalog/read_services/product_detail.py
+from __future__ import annotations
+from dataclasses import dataclass
+from app.infra.uow import UoW
+from app.domains.catalog.repos import ProductsReadRepository, ProductMetaReadRepository
+from app.domains.procurement.repos import SupplierItemReadRepository, ProductEventReadRepository
+from app.helpers.best_offer import best_offer
+from app.schemas.products import (
+    ProductOut,
+    ProductMetaOut,
+    OfferOut,
+    ProductEventOut,
+    ProductDetailOut,
+    ProductStatsOut,
+    SeriesPointOut,
+)
+from .series import aggregate_daily_points  # extrai o helper
+
+
+@dataclass(frozen=True)
+class DetailOptions:
+    expand_meta: bool = True
+    expand_offers: bool = True
+    expand_events: bool = True
+    events_days: int | None = 90
+    events_limit: int | None = 2000
+    aggregate_daily: bool = True
+
+
+def get_product_detail(uow: UoW, *, id_product: int, opts: DetailOptions) -> ProductDetailOut:
+    db = uow.db
+
+    # 1) produto + nomes agregados
+    p_repo = ProductsReadRepository(db)
+    row = p_repo.get_product_with_names(id_product)
+    if not row:
+        from app.core.errors import NotFound
+
+        raise NotFound("Product not found")
+
+    p = ProductOut(
+        id=row.id,
+        gtin=row.gtin,
+        id_ecommerce=row.id_ecommerce,
+        id_brand=row.id_brand,
+        brand_name=row.brand_name,
+        id_category=row.id_category,
+        category_name=row.category_name,
+        partnumber=row.partnumber,
+        name=row.name,
+        description=row.description,
+        image_url=row.image_url,
+        weight_str=row.weight_str,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+    # 2) meta
+    meta_list: list[ProductMetaOut] = []
+    if opts.expand_meta:
+        m_repo = ProductMetaReadRepository(db)
+        ms = m_repo.list_for_product(p.id)
+        meta_list = [ProductMetaOut(name=m.name, value=m.value or "") for m in ms]
+
+    # 3) ofertas
+    offers: list[OfferOut] = []
+    offers_in_stock = 0
+    suppliers_set: set[int] = set()
+    if opts.expand_offers:
+        si_repo = SupplierItemReadRepository(db)
+        offers_raw = si_repo.list_offers_for_product(p.id, only_in_stock=False)
+        for o in offers_raw:
+            offer = OfferOut(
+                id_supplier=o["id_supplier"],
+                supplier_name=o.get("supplier_name"),
+                supplier_image=o.get("supplier_image"),
+                id_feed=o["id_feed"],
+                sku=o["sku"],
+                price=o["price"],
+                stock=o["stock"],
+                id_last_seen_run=o.get("id_last_seen_run"),
+                updated_at=o.get("updated_at"),
+            )
+            offers.append(offer)
+            if (offer.stock or 0) > 0:
+                offers_in_stock += 1
+            if o.get("id_supplier"):
+                suppliers_set.add(int(o["id_supplier"]))
+
+    best = best_offer(offers) if offers else None
+
+    # 4) eventos + séries
+    events_out: list[ProductEventOut] | None = None
+    series_daily: list[SeriesPointOut] | None = None
+    first_seen = None
+    last_seen = None
+    last_change_at = None
+
+    if opts.expand_events:
+        ev_repo = ProductEventReadRepository(db)
+        evs = ev_repo.list_events_for_product(p.id, days=opts.events_days, limit=opts.events_limit)
+        if evs:
+            events_out = [
+                ProductEventOut(
+                    created_at=e["created_at"],  # <- manter assim
+                    reason=e["reason"],
+                    price=e.get("price"),
+                    stock=e.get("stock"),
+                    id_supplier=e.get("id_supplier"),
+                    supplier_name=e.get("supplier_name"),
+                    id_feed_run=e.get("id_feed_run"),
+                )
+                for e in evs
+            ]
+
+            first_seen = evs[0]["created_at"]
+            last_seen = evs[-1]["created_at"]
+            for e in reversed(evs):
+                if (e.get("reason") or "").lower() != "init":
+                    last_change_at = e["created_at"]
+                    break
+            if opts.aggregate_daily:
+                series_daily = aggregate_daily_points(events_out)
+
+    stats = ProductStatsOut(
+        first_seen=first_seen or p.created_at,
+        last_seen=last_seen or p.updated_at or p.created_at,
+        suppliers_count=len(suppliers_set),
+        offers_in_stock=offers_in_stock,
+        last_change_at=last_change_at,
+    )
+
+    return ProductDetailOut(
+        product=p,
+        meta=meta_list,
+        offers=offers,
+        best_offer=best,
+        stats=stats,
+        events=events_out,
+        series_daily=series_daily,
+    )

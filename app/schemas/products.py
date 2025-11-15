@@ -2,7 +2,7 @@
 from __future__ import annotations
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class OfferOut(BaseModel):
@@ -53,7 +53,8 @@ class ProductMetaOut(BaseModel):
 
 
 class ProductEventOut(BaseModel):
-    ts: datetime = Field(..., alias="created_at")
+    model_config = ConfigDict(extra="forbid")  # apanha campos errados cedo
+    created_at: datetime  # <- CHAVE OFICIAL
     reason: str
     price: str | None = None
     stock: int | None = None
@@ -78,9 +79,9 @@ class ProductStatsOut(BaseModel):
 
 class ProductDetailOut(BaseModel):
     product: ProductOut
-    meta: list[ProductMetaOut] = []
-    offers: list = []
-    best_offer: object | None = None
+    meta: list[ProductMetaOut] = Field(default_factory=list)
+    offers: list[OfferOut] = Field(default_factory=list)
+    best_offer: OfferOut | None = None
     stats: ProductStatsOut
     events: list[ProductEventOut] | None = None
     series_daily: list[SeriesPointOut] | None = None

@@ -18,6 +18,15 @@ Backend
 │  │  └─ __init__.py
 │  ├─ core
 │  │  ├─ config.py
+│  │  ├─ deps
+│  │  │  ├─ external
+│  │  │  │  ├─ feeds.py
+│  │  │  │  ├─ prestashop.py
+│  │  │  │  └─ __init__.py
+│  │  │  ├─ providers.py
+│  │  │  ├─ security.py
+│  │  │  ├─ uow.py
+│  │  │  └─ __init__.py
 │  │  ├─ deps.py
 │  │  ├─ errors.py
 │  │  ├─ http_errors.py
@@ -27,12 +36,15 @@ Backend
 │  │  └─ __init__.py
 │  ├─ domains
 │  │  ├─ auth
-│  │  │  ├─ ports.py
 │  │  │  ├─ usecases
 │  │  │  │  ├─ login.py
 │  │  │  │  └─ __init__.py
 │  │  │  └─ __init__.py
 │  │  ├─ catalog
+│  │  │  ├─ read_services
+│  │  │  │  ├─ product_detail.py
+│  │  │  │  ├─ series.py
+│  │  │  │  └─ __init__.py
 │  │  │  ├─ repos.py
 │  │  │  ├─ usecases
 │  │  │  │  ├─ brands
@@ -42,6 +54,8 @@ Backend
 │  │  │  │  │  ├─ list_categories.py
 │  │  │  │  │  └─ __init__.py
 │  │  │  │  ├─ products
+│  │  │  │  │  ├─ get_product_by_gtin.py
+│  │  │  │  │  ├─ get_product_detail.py
 │  │  │  │  │  ├─ list_products.py
 │  │  │  │  │  └─ __init__.py
 │  │  │  │  └─ __init__.py
@@ -79,8 +93,11 @@ Backend
 │  │  └─ __init__.py
 │  ├─ external
 │  │  ├─ feed_downloader.py
-│  │  ├─ prestashop_auth_provider.py
 │  │  ├─ prestashop_client.py
+│  │  └─ __init__.py
+│  ├─ helpers
+│  │  ├─ best_offer.py
+│  │  ├─ number_conversions.py
 │  │  └─ __init__.py
 │  ├─ infra
 │  │  ├─ base.py
@@ -102,16 +119,37 @@ Backend
 │  │  ├─ supplier_item.py
 │  │  └─ __init__.py
 │  ├─ repositories
-│  │  ├─ base.py
-│  │  ├─ brand_repo.py
-│  │  ├─ category_repo.py
-│  │  ├─ feed_run_repo.py
-│  │  ├─ mapper_repo.py
-│  │  ├─ product_event_repo.py
-│  │  ├─ product_repo.py
-│  │  ├─ supplier_feed_repo.py
-│  │  ├─ supplier_item_repo.py
-│  │  ├─ supplier_repo.py
+│  │  ├─ catalog
+│  │  │  ├─ read
+│  │  │  │  ├─ brand_read_repo.py
+│  │  │  │  ├─ category_read_repo.py
+│  │  │  │  ├─ products_read_repo.py
+│  │  │  │  ├─ product_meta_read_repo.py
+│  │  │  │  └─ __init__.py
+│  │  │  ├─ write
+│  │  │  │  ├─ brand_write_repo.py
+│  │  │  │  ├─ category_write_repo.py
+│  │  │  │  ├─ product_write_repo.py
+│  │  │  │  └─ __init__.py
+│  │  │  └─ __init__.py
+│  │  ├─ procurement
+│  │  │  ├─ read
+│  │  │  │  ├─ feed_run_read_repo.py
+│  │  │  │  ├─ mapper_read_repo.py
+│  │  │  │  ├─ product_event_read_repo.py
+│  │  │  │  ├─ supplier_feed_read_repo.py
+│  │  │  │  ├─ supplier_item_read_repo.py
+│  │  │  │  ├─ supplier_read_repo.py
+│  │  │  │  └─ __init__.py
+│  │  │  ├─ write
+│  │  │  │  ├─ feed_run_write_repo.py
+│  │  │  │  ├─ mapper_write_repo.py
+│  │  │  │  ├─ product_event_write_repo.py
+│  │  │  │  ├─ supplier_feed_write_repo.py
+│  │  │  │  ├─ supplier_item_write_repo.py
+│  │  │  │  ├─ supplier_write_repo.py
+│  │  │  │  └─ __init__.py
+│  │  │  └─ __init__.py
 │  │  └─ __init__.py
 │  ├─ schemas
 │  │  ├─ auth.py
@@ -127,7 +165,6 @@ Backend
 │  │  ├─ jwt.py
 │  │  └─ __init__.py
 │  └─ __init__.py
-├─ app.zip
 ├─ apps
 │  ├─ api_main.py
 │  └─ __init__.py
@@ -137,6 +174,8 @@ Backend
 ├─ pyproject.toml
 ├─ README.md
 ├─ requirements.txt
-└─ TODO.md
+├─ TODO.md
+└─ __saves
+   └─ orima_mapper.json
 
 ```
