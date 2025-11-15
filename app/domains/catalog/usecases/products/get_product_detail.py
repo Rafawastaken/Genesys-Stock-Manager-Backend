@@ -1,11 +1,11 @@
 # app/domains/catalog/usecases/products/get_product_detail.py
 
 from __future__ import annotations
-from decimal import Decimal, InvalidOperation
 from datetime import datetime
 
 from app.core.errors import NotFound
 from app.infra.uow import UoW
+from app.helpers.best_offer import best_offer
 from app.domains.catalog.repos import ProductsReadRepository, ProductMetaReadRepository
 from app.domains.procurement.repos import SupplierItemReadRepository, ProductEventReadRepository
 from app.schemas.products import (
@@ -17,38 +17,6 @@ from app.schemas.products import (
     ProductStatsOut,
     SeriesPointOut,
 )
-
-
-def _as_decimal(s: str | None) -> Decimal | None:
-    if s is None:
-        return None
-    raw = str(s).strip().replace(" ", "")
-    if not raw:
-        return None
-    try:
-        if "," in raw and "." in raw:
-            if raw.rfind(",") > raw.rfind("."):
-                raw = raw.replace(".", "").replace(",", ".")
-            else:
-                raw = raw.replace(",", "")
-        else:
-            raw = raw.replace(",", ".")
-        return Decimal(raw)
-    except (InvalidOperation, ValueError):
-        return None
-
-
-def _best_offer(offers: list[OfferOut]) -> OfferOut | None:
-    best, best_price = None, None
-    for o in offers:
-        if (o.stock or 0) <= 0:
-            continue
-        p = _as_decimal(o.price)
-        if p is None:
-            continue
-        if best is None or p < best_price:
-            best, best_price = o, p
-    return best
 
 
 def _aggregate_daily(events: list[ProductEventOut]) -> list[SeriesPointOut]:
@@ -136,7 +104,7 @@ def execute(
             if o.get("id_supplier"):
                 suppliers_set.add(int(o["id_supplier"]))
 
-    best = _best_offer(offers) if offers else None
+    best = best_offer(offers) if offers else None
 
     # 4) events + séries
     events_out: list[ProductEventOut] | None = None

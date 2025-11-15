@@ -198,3 +198,10 @@ class ProductsReadRepository:
         )
         row = self.db.execute(stmt).first()
         return row
+
+    # Produto atraves de gtin
+    def get_id_by_gtin(self, gtin: str) -> int | None:
+        if not gtin:
+            return None
+        stmt = select(Product.id).where(Product.gtin == gtin)
+        return self.db.scalar(stmt)

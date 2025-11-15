@@ -1,44 +1,11 @@
 # app/domains/catalog/usecases/products/list_products.py
 from __future__ import annotations
-from decimal import Decimal, InvalidOperation
-from collections.abc import Iterable
 
+from app.helpers.best_offer import best_offer
 from app.infra.uow import UoW
 from app.domains.catalog.repos import ProductsReadRepository
 from app.domains.procurement.repos import SupplierItemReadRepository
 from app.schemas.products import OfferOut, ProductListOut, ProductOut
-
-
-def _as_decimal(s: str | None) -> Decimal | None:
-    if s is None:
-        return None
-    raw = str(s).strip().replace(" ", "")
-    if not raw:
-        return None
-    try:
-        if "," in raw and "." in raw:
-            if raw.rfind(",") > raw.rfind("."):
-                raw = raw.replace(".", "").replace(",", ".")
-            else:
-                raw = raw.replace(",", "")
-        else:
-            raw = raw.replace(",", ".")
-        return Decimal(raw)
-    except (InvalidOperation, ValueError):
-        return None
-
-
-def _best_offer(offers: Iterable[OfferOut]) -> OfferOut | None:
-    best, best_price = None, None
-    for o in offers:
-        if (o.stock or 0) <= 0:
-            continue
-        p = _as_decimal(o.price)
-        if p is None:
-            continue
-        if best is None or p < best_price:
-            best, best_price = o, p
-    return best
 
 
 def execute(
@@ -122,7 +89,7 @@ def execute(
 
     # 4) best_offer (stock > 0)
     for po in items_map.values():
-        po.best_offer = _best_offer(po.offers) if po.offers else None
+        po.best_offer = best_offer(po.offers) if po.offers else None
 
     return ProductListOut(
         items=[items_map[i] for i in ids],
