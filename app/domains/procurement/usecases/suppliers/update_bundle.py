@@ -1,4 +1,3 @@
-# app/domains/procurement/usecases/suppliers/update_bundle.py
 from __future__ import annotations
 
 from typing import Any
@@ -7,35 +6,34 @@ import logging
 
 from sqlalchemy.exc import IntegrityError
 
-from app.core.errors import BadRequest, Conflict, NotFound
+from app.core.errors import BadRequest, Conflict, NotFound, InvalidArgument
 from app.domains.procurement.usecases.suppliers.get_supplier_detail import (
     execute as uc_get_detail,
 )
 from app.infra.uow import UoW
 from app.repositories.procurement.read.supplier_feed_read_repo import SupplierFeedReadRepository
-from app.repositories.procurement.read.supplier_read_repo import SupplierReadRepository
 from app.repositories.procurement.write.mapper_write_repo import MapperWriteRepository
 from app.repositories.procurement.write.supplier_feed_write_repo import SupplierFeedWriteRepository
 from app.repositories.procurement.write.supplier_write_repo import SupplierWriteRepository
 from app.schemas.suppliers import SupplierBundleUpdate, SupplierDetailOut
 
-
 log = logging.getLogger("gsm.http")
 
 
 def _update_supplier_fields(
-    sup_r: SupplierReadRepository,
     sup_w: SupplierWriteRepository,
     id_supplier: int,
     supplier_data: Any | None,
 ) -> None:
+    """
+    Aplica apenas os campos presentes usando o metodo update do repo,
+    que já trata de normalização e unicidade do nome.
+    """
     if supplier_data is None:
         return
-    s = sup_r.get(id_supplier)
-    if not s:
-        raise NotFound("Supplier not found")
 
-    # aplica apenas campos presentes (permite parciais)
+    kwargs: dict[str, Any] = {}
+
     for f in (
         "name",
         "active",
@@ -46,10 +44,15 @@ def _update_supplier_fields(
         "margin",
         "country",
     ):
-        v = getattr(supplier_data, f, None)
-        if v is not None:
-            setattr(s, f, v)
-    # flush fica a cargo do UoW/commit; nada extra aqui
+        if hasattr(supplier_data, f):
+            v = getattr(supplier_data, f)
+            if v is not None:
+                kwargs[f] = v
+
+    if not kwargs:
+        return
+
+    sup_w.update(id_supplier, **kwargs)
 
 
 def _apply_feed_mutations(entity: Any, feed_payload: Any) -> None:
@@ -123,28 +126,25 @@ def _upsert_mapper_for_feed(
     )
 
 
-# -------------------------- usecase -------------------------- #
-
-
 def execute(uow: UoW, *, id_supplier: int, payload: SupplierBundleUpdate) -> SupplierDetailOut:
-    sup_r = SupplierReadRepository(uow.db)
     sup_w = SupplierWriteRepository(uow.db)
     feed_r = SupplierFeedReadRepository(uow.db)
     feed_w = SupplierFeedWriteRepository(uow.db)
     map_w = MapperWriteRepository(uow.db)
 
     try:
-        # 1) Supplier
-        _update_supplier_fields(sup_r, sup_w, id_supplier, payload.supplier)
+        # 1) Supplier (usa repo.update)
+        _update_supplier_fields(sup_w, id_supplier, payload.supplier)
+
         # 2) Feed
         feed_entity = _upsert_feed_for_supplier(feed_w, id_supplier, payload.feed)
+
         # 3) Mapper (depende do feed)
         _upsert_mapper_for_feed(map_w, feed_r, id_supplier, feed_entity, payload.mapper)
 
-        # tudo OK → commit
         uow.commit()
 
-    except NotFound:
+    except (NotFound, InvalidArgument, Conflict):
         uow.rollback()
         raise
     except IntegrityError as err:

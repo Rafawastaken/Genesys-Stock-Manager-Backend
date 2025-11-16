@@ -16,8 +16,8 @@ class SupplierWriteRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get(self, id_supplier: int) -> Supplier:
-        return self.db.query(Supplier).get(id_supplier)
+    def get(self, id_supplier: int) -> Supplier | None:
+        return self.db.get(Supplier, id_supplier)
 
     # helper local (evita importar o read repo)
     def _get_by_name_ci(self, name: str) -> Supplier | None:
@@ -75,7 +75,6 @@ class SupplierWriteRepository:
         self.db.delete(entity)
         # flush/commit ficam ao cargo do UoW
 
-    # (Opcional) atualização parcial
     def update(
         self,
         id_supplier: int,

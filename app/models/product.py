@@ -10,6 +10,7 @@ from app.infra.base import Base, utcnow
 if TYPE_CHECKING:
     from .product_meta import ProductMeta
     from .product_supplier_event import ProductSupplierEvent
+    from .product_active_offer import ProductActiveOffer
 
 
 class Product(Base):
@@ -41,6 +42,13 @@ class Product(Base):
     )
     supplier_events: Mapped[list["ProductSupplierEvent"]] = relationship(
         "ProductSupplierEvent", back_populates="product", cascade="all,delete-orphan"
+    )
+
+    active_offer: Mapped["ProductActiveOffer | None"] = relationship(
+        "ProductActiveOffer",
+        back_populates="product",
+        uselist=False,
+        cascade="all,delete-orphan",
     )
 
     __table_args__ = (

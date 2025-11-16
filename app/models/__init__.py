@@ -12,6 +12,7 @@ from .product_supplier_event import ProductSupplierEvent
 from .supplier import Supplier
 from .supplier_feed import SupplierFeed
 from .supplier_item import SupplierItem
+from .product_active_offer import ProductActiveOffer
 
 __all__ = [
     "Base",
@@ -28,6 +29,7 @@ __all__ = [
     "Supplier",
     "SupplierFeed",
     "SupplierItem",
+    "ProductActiveOffer",
 ]
 
 
