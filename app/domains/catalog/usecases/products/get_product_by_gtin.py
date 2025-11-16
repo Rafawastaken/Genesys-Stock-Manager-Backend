@@ -1,7 +1,7 @@
 # app/domains/catalog/usecases/products/get_product_by_gtin.py
 from app.infra.uow import UoW
 from app.core.errors import NotFound
-from app.domains.catalog.repos import ProductsReadRepository
+from app.repositories.catalog.read.products_read_repo import ProductsReadRepository
 from app.domains.catalog.read_services.product_detail import get_product_detail, DetailOptions
 from app.schemas.products import ProductDetailOut
 

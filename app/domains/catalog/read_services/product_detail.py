@@ -2,9 +2,11 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from app.infra.uow import UoW
-from app.domains.catalog.repos import ProductsReadRepository, ProductMetaReadRepository
-from app.domains.procurement.repos import SupplierItemReadRepository, ProductEventReadRepository
 from app.helpers.best_offer import best_offer
+from app.repositories.catalog.read.product_meta_read_repo import ProductMetaReadRepository
+from app.repositories.catalog.read.products_read_repo import ProductsReadRepository
+from app.repositories.procurement.read.product_event_read_repo import ProductEventReadRepository
+from app.repositories.procurement.read.supplier_item_read_repo import SupplierItemReadRepository
 from app.schemas.products import (
     ProductOut,
     ProductMetaOut,

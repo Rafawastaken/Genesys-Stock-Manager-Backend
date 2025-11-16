@@ -2,8 +2,8 @@
 from __future__ import annotations
 import json
 
-from app.domains.procurement.repos import SupplierFeedWriteRepository
 from app.infra.uow import UoW
+from app.repositories.procurement.write.supplier_feed_write_repo import SupplierFeedWriteRepository
 from app.schemas.feeds import SupplierFeedCreate, SupplierFeedUpdate, SupplierFeedOut
 
 

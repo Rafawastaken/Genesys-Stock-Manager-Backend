@@ -1,9 +1,9 @@
 # app/domains/procurement/usecases/mappers/validate_mapper.py
 from __future__ import annotations
-
 from typing import Any
-from app.domains.procurement.repos import MapperReadRepository
+
 from app.infra.uow import UoW
+from app.repositories.procurement.read.mapper_read_repo import MapperReadRepository
 from app.schemas.mappers import MapperValidateIn, MapperValidateOut
 
 
@@ -51,7 +51,7 @@ def execute(uow: UoW, *, id_feed: int, payload: MapperValidateIn) -> MapperValid
     if profile is None:
         # usa o helper do read-repo que já te devolve dict seguro
         repo = MapperReadRepository(uow.db)
-        profile = repo.get_profile(id_feed)  # {} se não existir ou se json estiver inválido
+        profile = repo.get_by_feed(id_feed)  # {} se não existir ou se json estiver inválido
 
         if not profile:
             return MapperValidateOut(

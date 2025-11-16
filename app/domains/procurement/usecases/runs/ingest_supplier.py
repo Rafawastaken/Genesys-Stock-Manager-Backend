@@ -12,19 +12,18 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.errors import InvalidArgument, NotFound
 from app.core.normalize import normalize_images, normalize_simple
-from app.domains.catalog.repos import ProductWriteRepository
 from app.domains.mapping.engine import IngestEngine
-from app.domains.procurement.repos import (
-    FeedRunReadRepository,
-    FeedRunWriteRepository,
-    MapperReadRepository,
-    ProductEventWriteRepository,
-    SupplierFeedReadRepository,
-    SupplierItemWriteRepository,
-)
-from app.domains.procurement.repos import SupplierReadRepository
+from app.repositories.catalog.write.product_write_repo import ProductWriteRepository
+from app.repositories.procurement.read.feed_run_read_repo import FeedRunReadRepository
+from app.repositories.procurement.read.mapper_read_repo import MapperReadRepository
+from app.repositories.procurement.read.supplier_feed_read_repo import SupplierFeedReadRepository
+
+from app.repositories.procurement.read.supplier_read_repo import SupplierReadRepository
 from app.external.feed_downloader import http_download, parse_rows_json
 from app.infra.uow import UoW
+from app.repositories.procurement.write.feed_run_write_repo import FeedRunWriteRepository
+from app.repositories.procurement.write.product_event_write_repo import ProductEventWriteRepository
+from app.repositories.procurement.write.supplier_item_write_repo import SupplierItemWriteRepository
 
 log = logging.getLogger("gsm.ingest")
 

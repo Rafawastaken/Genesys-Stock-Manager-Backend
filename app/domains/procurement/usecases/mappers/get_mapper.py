@@ -1,9 +1,9 @@
 # app/domains/procurement/usecases/mappers/get_mapper.py
 from __future__ import annotations
 
-from app.core.errors import NotFound
-from app.domains.procurement.repos import MapperReadRepository
 from app.infra.uow import UoW
+from app.core.errors import NotFound
+from app.repositories.procurement.read.mapper_read_repo import MapperReadRepository
 from app.schemas.mappers import FeedMapperOut
 
 

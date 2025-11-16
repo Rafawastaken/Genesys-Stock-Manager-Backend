@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from app.domains.procurement.repos import SupplierReadRepository
 from app.infra.uow import UoW
 from app.models.supplier import Supplier
+from app.repositories.procurement.read.supplier_read_repo import SupplierReadRepository
 
 
 def execute(

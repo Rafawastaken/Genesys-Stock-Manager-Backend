@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from app.core.errors import NotFound
-from app.domains.procurement.repos import SupplierFeedReadRepository
+from app.repositories.procurement.read.supplier_feed_read_repo import SupplierFeedReadRepository
 from app.infra.uow import UoW
 from app.schemas.feeds import SupplierFeedOut
 

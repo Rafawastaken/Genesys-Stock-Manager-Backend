@@ -3,7 +3,8 @@ from __future__ import annotations
 from sqlalchemy.exc import IntegrityError
 
 from app.core.errors import Conflict, NotFound
-from app.domains.procurement.repos import SupplierFeedReadRepository, SupplierFeedWriteRepository
+from app.repositories.procurement.read.supplier_feed_read_repo import SupplierFeedReadRepository
+from app.repositories.procurement.write.supplier_feed_write_repo import SupplierFeedWriteRepository
 from app.infra.uow import UoW
 
 

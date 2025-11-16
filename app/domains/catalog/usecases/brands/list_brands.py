@@ -1,10 +1,11 @@
 # app/domains/catalog/usecases/brands/list_brands.py
+
 from __future__ import annotations
 from collections.abc import Sequence
 
 from app.infra.uow import UoW
 from app.models.brand import Brand
-from app.domains.catalog.repos import BrandsReadRepository
+from app.repositories.catalog.read.brand_read_repo import BrandsReadRepository
 
 
 def execute(

@@ -3,10 +3,11 @@ from __future__ import annotations
 
 from sqlalchemy.exc import IntegrityError
 
-from app.core.errors import BadRequest, Conflict, InvalidArgument  # << usa AppErrors
-from app.domains.procurement.repos import SupplierWriteRepository
+from app.core.errors import BadRequest, Conflict, InvalidArgument
+
 from app.infra.uow import UoW
 from app.models.supplier import Supplier
+from app.repositories.procurement.write.supplier_write_repo import SupplierWriteRepository
 from app.schemas.suppliers import SupplierCreate
 
 

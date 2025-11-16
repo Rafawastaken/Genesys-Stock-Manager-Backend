@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from app.infra.uow import UoW
-from app.domains.catalog.repos import CategoryReadRepository
+from app.repositories.catalog.read.category_read_repo import CategoryReadRepository
 
 
 def execute(uow: UoW, *, search: str | None, page: int, page_size: int):

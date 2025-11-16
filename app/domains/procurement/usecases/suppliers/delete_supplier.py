@@ -4,8 +4,8 @@ from __future__ import annotations
 from sqlalchemy.exc import IntegrityError
 
 from app.core.errors import BadRequest, Conflict, NotFound
-from app.domains.procurement.repos import SupplierWriteRepository
 from app.infra.uow import UoW
+from app.repositories.procurement.write.supplier_write_repo import SupplierWriteRepository
 
 
 def execute(uow: UoW, *, id_supplier: int) -> None:

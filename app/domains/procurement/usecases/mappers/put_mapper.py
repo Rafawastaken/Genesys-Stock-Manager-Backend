@@ -1,13 +1,11 @@
 # app/domains/procurement/usecases/mappers/put_mapper.py
 from __future__ import annotations
 
+from app.infra.uow import UoW
 from sqlalchemy.exc import IntegrityError
 from app.core.errors import BadRequest, Conflict, InvalidArgument, NotFound
-from app.domains.procurement.repos import (
-    MapperWriteRepository,
-    SupplierFeedReadRepository,
-)
-from app.infra.uow import UoW
+from app.repositories.procurement.write.mapper_write_repo import MapperWriteRepository
+from app.repositories.procurement.read.supplier_feed_read_repo import SupplierFeedReadRepository
 from app.schemas.mappers import FeedMapperOut, FeedMapperUpsert
 
 

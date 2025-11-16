@@ -4,12 +4,10 @@ from __future__ import annotations
 import json
 
 from app.core.errors import NotFound  # << usar AppError
-from app.domains.procurement.repos import (
-    MapperReadRepository,
-    SupplierFeedReadRepository,
-    SupplierReadRepository,
-)
 from app.infra.uow import UoW
+from app.repositories.procurement.read.mapper_read_repo import MapperReadRepository
+from app.repositories.procurement.read.supplier_feed_read_repo import SupplierFeedReadRepository
+from app.repositories.procurement.read.supplier_read_repo import SupplierReadRepository
 from app.schemas.feeds import SupplierFeedOut
 from app.schemas.mappers import FeedMapperOut
 from app.schemas.suppliers import SupplierDetailOut, SupplierOut

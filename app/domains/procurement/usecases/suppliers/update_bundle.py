@@ -8,17 +8,15 @@ import logging
 from sqlalchemy.exc import IntegrityError
 
 from app.core.errors import BadRequest, Conflict, NotFound
-from app.domains.procurement.repos import (
-    SupplierReadRepository,
-    SupplierWriteRepository,
-    SupplierFeedReadRepository,
-    SupplierFeedWriteRepository,
-    MapperWriteRepository,
-)
 from app.domains.procurement.usecases.suppliers.get_supplier_detail import (
     execute as uc_get_detail,
 )
 from app.infra.uow import UoW
+from app.repositories.procurement.read.supplier_feed_read_repo import SupplierFeedReadRepository
+from app.repositories.procurement.read.supplier_read_repo import SupplierReadRepository
+from app.repositories.procurement.write.mapper_write_repo import MapperWriteRepository
+from app.repositories.procurement.write.supplier_feed_write_repo import SupplierFeedWriteRepository
+from app.repositories.procurement.write.supplier_write_repo import SupplierWriteRepository
 from app.schemas.suppliers import SupplierBundleUpdate, SupplierDetailOut
 
 
