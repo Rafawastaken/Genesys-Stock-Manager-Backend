@@ -1,7 +1,7 @@
 # app/domains/catalog/usecases/products/get_product_detail.py
 from app.infra.uow import UoW
 from app.schemas.products import ProductDetailOut
-from app.domains.catalog.read_services.product_detail import get_product_detail, DetailOptions
+from app.domains.catalog.services.product_detail import get_product_detail, DetailOptions
 
 
 def execute(uow: UoW, *, id_product: int, **kwargs) -> ProductDetailOut:

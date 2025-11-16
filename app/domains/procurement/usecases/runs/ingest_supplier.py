@@ -12,18 +12,28 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.errors import InvalidArgument, NotFound
 from app.core.normalize import normalize_images, normalize_simple
+from app.domains.catalog.services.active_offer import (
+    recalculate_active_offer_for_product,
+)
 from app.domains.mapping.engine import IngestEngine
+from app.external.feed_downloader import http_download, parse_rows_json
+from app.infra.uow import UoW
 from app.repositories.catalog.write.product_write_repo import ProductWriteRepository
 from app.repositories.procurement.read.feed_run_read_repo import FeedRunReadRepository
 from app.repositories.procurement.read.mapper_read_repo import MapperReadRepository
-from app.repositories.procurement.read.supplier_feed_read_repo import SupplierFeedReadRepository
-
+from app.repositories.procurement.read.supplier_feed_read_repo import (
+    SupplierFeedReadRepository,
+)
 from app.repositories.procurement.read.supplier_read_repo import SupplierReadRepository
-from app.external.feed_downloader import http_download, parse_rows_json
-from app.infra.uow import UoW
-from app.repositories.procurement.write.feed_run_write_repo import FeedRunWriteRepository
-from app.repositories.procurement.write.product_event_write_repo import ProductEventWriteRepository
-from app.repositories.procurement.write.supplier_item_write_repo import SupplierItemWriteRepository
+from app.repositories.procurement.write.feed_run_write_repo import (
+    FeedRunWriteRepository,
+)
+from app.repositories.procurement.write.product_event_write_repo import (
+    ProductEventWriteRepository,
+)
+from app.repositories.procurement.write.supplier_item_write_repo import (
+    SupplierItemWriteRepository,
+)
 
 log = logging.getLogger("gsm.ingest")
 
@@ -136,6 +146,7 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
         profile = mapper_r.profile_for_feed(feed.id)  # devolve {} se não existir/ inválido
         engine = IngestEngine(profile)
 
+        affected_products: set[int] = set()
         ok = bad = changed = 0
 
         for idx, raw_row in enumerate(rows, 1):
@@ -220,6 +231,8 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
                 id_feed_run=id_run,
             )
 
+            affected_products.add(p.id)
+
             # evento por criação/alteração
             changed += ev_w.record_from_item_change(
                 id_product=p.id,
@@ -237,10 +250,19 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
                 log.info("[run=%s] progress %s/%s ok=%s bad=%s", id_run, idx, len(rows), ok, bad)
 
         # EOL dos itens não vistos neste run
-        eol_marked = ev_w.mark_eol_for_unseen_items(
-            id_feed=feed.id, id_supplier=id_supplier, id_feed_run=id_run
+        eol_products = ev_w.mark_eol_for_unseen_items(
+            id_feed=feed.id,
+            id_supplier=id_supplier,
+            id_feed_run=id_run,
         )
+        eol_marked = len(eol_products)
+        affected_products.update(eol_products)
+
         log.info("[run=%s] EOL marked=%s", id_run, eol_marked)
+
+        # Recalcular oferta ativa para todos os produtos afetados neste run
+        for id_product in affected_products:
+            recalculate_active_offer_for_product(uow.db, id_product=id_product)
 
         # finaliza
         run_w.finalize_ok(
