@@ -50,7 +50,6 @@ def execute(
             )
         )
 
-    # já marcámos como processing lá no repo → commit aqui
     uow.commit()
 
     return items_out
