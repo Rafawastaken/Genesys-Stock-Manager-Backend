@@ -14,7 +14,7 @@ UowDep = Annotated[UoW, Depends(get_uow)]
 
 @router.get("", response_model=CategoryListOut, dependencies=[Depends(require_access_token)])
 def list_categories(
-    uow: UowDep,  # <- sem default
+    uow: UowDep,
     search: str | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),

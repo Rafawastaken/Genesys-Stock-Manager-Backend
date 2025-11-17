@@ -14,11 +14,12 @@ extend-exclude = ["**/migrations/**"]
 [tool.ruff.lint]
 select = ["E", "F", "W", "B", "I", "UP", "C90", "SIM"]
 ignore = [
-  "E203",  # compat Black/Ruff em slices
-  "I001",  # isort: import block is un-sorted / un-formatted
-  "C901",  # mccabe: function is too complex
-  "E501",  # mccabe: Line too long
-  "B008",  # mccabe: Remover este check
+    "E203", # compat Black/Ruff em slices
+    "I001", # isort: import block is un-sorted / un-formatted
+    "C901", # mccabe: function is too complex
+    "E501", # mccabe: Line too long
+    "B008", # mccabe: Remover este check
+    "SIM102",
 ]
 
 [tool.ruff.lint.isort]

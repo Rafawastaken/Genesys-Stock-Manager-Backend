@@ -65,7 +65,6 @@ def _split_payload(mapped: dict[str, Any]):
         "name": mapped.get("name"),
         "description": mapped.get("description"),
         "image_url": mapped.get("image_url"),
-        "category_path": mapped.get("category"),
         "weight_str": mapped.get("weight"),
     }
     out_offer = {
@@ -75,7 +74,7 @@ def _split_payload(mapped: dict[str, Any]):
         "gtin": out_product["gtin"],
         "partnumber": out_product["partnumber"],
     }
-    used = set(CANON_PRODUCT_KEYS) | set(CANON_OFFER_KEYS) | {"category_path", "weight_str"}
+    used = set(CANON_PRODUCT_KEYS) | set(CANON_OFFER_KEYS)
     meta = {k: v for k, v in mapped.items() if k not in used and v not in (None, "", [])}
     return out_product, out_offer, meta
 
@@ -163,7 +162,7 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
             pn = product_payload.get("partnumber") or None
 
             raw_brand_name = mapped.get("brand") or None
-            raw_category_name = product_payload.get("category_path") or None
+            raw_category_name = mapped.get("category") or None
 
             brand_name = normalize_simple(raw_brand_name) if raw_brand_name else None
             category_name = normalize_simple(raw_category_name) if raw_category_name else None
@@ -196,7 +195,6 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
                 name=product_payload.get("name"),
                 description=product_payload.get("description"),
                 image_url=product_payload.get("image_url"),
-                category_path=product_payload.get("category_path"),
                 weight_str=product_payload.get("weight_str"),
                 partnumber=pn,
                 gtin=gtin,
@@ -250,13 +248,17 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
                 log.info("[run=%s] progress %s/%s ok=%s bad=%s", id_run, idx, len(rows), ok, bad)
 
         # EOL dos itens não vistos neste run
-        eol_products = ev_w.mark_eol_for_unseen_items(
+        eol_result = ev_w.mark_eol_for_unseen_items(
             id_feed=feed.id,
             id_supplier=id_supplier,
             id_feed_run=id_run,
         )
-        eol_marked = len(eol_products)
-        affected_products.update(eol_products)
+
+        if isinstance(eol_result, int):
+            eol_marked = eol_result
+        else:
+            eol_marked = len(eol_result)
+            affected_products.update(eol_result)
 
         log.info("[run=%s] EOL marked=%s", id_run, eol_marked)
 

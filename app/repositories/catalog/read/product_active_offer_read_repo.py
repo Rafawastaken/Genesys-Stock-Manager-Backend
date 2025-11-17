@@ -23,3 +23,14 @@ class ProductActiveOfferReadRepository:
 
     def get(self, id_offer: int) -> ProductActiveOffer | None:
         return self.db.get(ProductActiveOffer, id_offer)
+
+    def list_for_products(self, ids: list[int]) -> dict[int, ProductActiveOffer]:
+        """
+        Devolve um mapa {id_product: ProductActiveOffer} para uma lista de produtos.
+        Útil para listagens em batch.
+        """
+        if not ids:
+            return {}
+        stmt = select(ProductActiveOffer).where(ProductActiveOffer.id_product.in_(ids))
+        rows = self.db.scalars(stmt).all()
+        return {row.id_product: row for row in rows}

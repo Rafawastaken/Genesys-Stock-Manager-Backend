@@ -183,6 +183,7 @@ class ProductsReadRepository:
                 Product.id_category,
                 Product.partnumber,
                 Product.name,
+                Product.margin,
                 Product.description,
                 Product.image_url,
                 Product.weight_str,

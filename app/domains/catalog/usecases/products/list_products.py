@@ -1,11 +1,18 @@
-# app/domains/catalog/usecases/products/list_products.py
 from __future__ import annotations
 
-from app.helpers.best_offer import best_offer
 from app.infra.uow import UoW
 from app.repositories.catalog.read.products_read_repo import ProductsReadRepository
-from app.repositories.procurement.read.supplier_item_read_repo import SupplierItemReadRepository
-from app.schemas.products import OfferOut, ProductListOut, ProductOut
+from app.repositories.catalog.read.product_active_offer_read_repo import (
+    ProductActiveOfferReadRepository,
+)
+from app.repositories.procurement.read.supplier_item_read_repo import (
+    SupplierItemReadRepository,
+)
+from app.schemas.products import OfferOut, ProductListOut, ProductListItemOut
+from app.domains.catalog.services.mappers import (
+    map_product_row_to_list_item,
+    map_offer_row_to_out,
+)
 
 
 def execute(
@@ -47,49 +54,37 @@ def execute(
     if not rows:
         return ProductListOut(items=[], total=int(total), page=page, page_size=page_size)
 
-    # 2) Mapear rows → ProductOut (campos agregados brand_name/category_name já vêm do repo)
-    items_map: dict[int, ProductOut] = {}
+    # 2) Mapear rows → ProductListItemOut usando mapper comum
+    items_map: dict[int, ProductListItemOut] = {}
     ids: list[int] = []
     for r in rows:
         ids.append(r.id)
-        items_map[r.id] = ProductOut(
-            id=r.id,
-            gtin=r.gtin,
-            id_ecommerce=r.id_ecommerce,
-            id_brand=r.id_brand,
-            brand_name=getattr(r, "brand_name", None),
-            id_category=r.id_category,
-            category_name=getattr(r, "category_name", None),
-            partnumber=r.partnumber,
-            name=r.name,
-            description=r.description,
-            image_url=r.image_url,
-            weight_str=r.weight_str,
-            created_at=r.created_at,
-            updated_at=r.updated_at,
-        )
+        items_map[r.id] = map_product_row_to_list_item(r)
 
     # 3) Opcionalmente expandir ofertas via Procurement READ repo
     if expand_offers:
         si_repo = SupplierItemReadRepository(db)
         offers_raw = si_repo.list_offers_for_product_ids(ids, only_in_stock=False)
         for o in offers_raw:
-            offer = OfferOut(
-                id_supplier=o["id_supplier"],
-                supplier_name=o.get("supplier_name"),
-                supplier_image=o.get("supplier_image"),
-                id_feed=o["id_feed"],
-                sku=o["sku"],
-                price=o["price"],
-                stock=o["stock"],
-                id_last_seen_run=o.get("id_last_seen_run"),
-                updated_at=o.get("updated_at"),
-            )
+            offer: OfferOut = map_offer_row_to_out(o)
             items_map[o["id_product"]].offers.append(offer)
 
-    # 4) best_offer (stock > 0)
+    # 4) best_offer vem SEMPRE da ProductActiveOffer (DB)
+    pao_repo = ProductActiveOfferReadRepository(db)
+    active_map = pao_repo.list_for_products(ids)
+
     for po in items_map.values():
-        po.best_offer = best_offer(po.offers) if po.offers else None
+        best = None
+        offers = po.offers
+        pao = active_map.get(po.id)
+
+        if pao and pao.id_supplier is not None and offers:
+            for o in offers:
+                if o.id_supplier == pao.id_supplier:
+                    best = o
+                    break
+
+        po.best_offer = best
 
     return ProductListOut(
         items=[items_map[i] for i in ids],

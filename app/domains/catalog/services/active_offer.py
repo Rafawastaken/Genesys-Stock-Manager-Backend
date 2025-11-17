@@ -1,3 +1,4 @@
+# app/domains/catalog/services/active_offer.py
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -16,9 +17,18 @@ from app.models.product_active_offer import ProductActiveOffer
 @dataclass
 class BestOfferResult:
     id_supplier: int
-    id_supplier_item: int
+    id_supplier_item: int | None  # <-- AGORA PODE SER None
     unit_cost: float
     stock: int
+
+
+def _get(obj, key: str):
+    """
+    Helper para lidar tanto com dicts como com ORM objects/row mappings.
+    """
+    if isinstance(obj, dict):
+        return obj.get(key)
+    return getattr(obj, key, None)
 
 
 def get_best_offer_for_product(
@@ -30,55 +40,85 @@ def get_best_offer_for_product(
     Decide a melhor oferta para um produto com base nas SupplierItem.
 
     Regras:
-    - só considera ofertas com stock > 0
-    - ordena por:
-        1) menor preço (price)
-        2) em empate: maior stock
-        3) em empate: menor id_supplier (determinístico)
+    - se existirem ofertas com stock > 0:
+        → escolhe a melhor ENTRE essas (menor preço, depois maior stock,
+          depois menor id_supplier para desempatar)
+    - se NÃO existirem ofertas com stock > 0 mas existirem ofertas:
+        → escolhe a melhor oferta global (mesma ordenação), mesmo com stock = 0
+    - se não houver ofertas:
+        → devolve None
     """
     if not id_product:
         return None
 
     si_repo = SupplierItemReadRepository(db)
 
-    # Idealmente tens algo como isto no repo:
-    # list_offers_for_product(id_product, only_in_stock=True)
-    offers = si_repo.list_offers_for_product(id_product=id_product, only_in_stock=True)
+    # Read repo devolve rows/dicts com campos tipo:
+    # id_product, id_supplier, price, stock, ...
+    offers = si_repo.list_offers_for_product(id_product, only_in_stock=False)
 
-    best: BestOfferResult | None = None
+    best_any: BestOfferResult | None = None
+    best_in_stock: BestOfferResult | None = None
 
     for item in offers:
-        # assumindo que item tem atributos id, id_supplier, price, stock
-        if item.price is None or item.stock is None:
+        raw_price = _get(item, "price")
+        raw_stock = _get(item, "stock")
+        id_supplier = _get(item, "id_supplier")
+        # pode NÃO existir; tudo bem
+        raw_id_supplier_item = _get(item, "id_supplier_item") or _get(item, "id")
+
+        if raw_price is None or raw_stock is None or id_supplier is None:
+            # sem estes não dá mesmo para decidir
             continue
+
+        try:
+            unit_cost = float(raw_price)
+            stock = int(raw_stock)
+        except (TypeError, ValueError):
+            continue
+
+        id_supplier_item = int(raw_id_supplier_item) if raw_id_supplier_item is not None else None
 
         candidate = BestOfferResult(
-            id_supplier=item.id_supplier,
-            id_supplier_item=item.id,
-            unit_cost=float(item.price),
-            stock=int(item.stock),
+            id_supplier=int(id_supplier),
+            id_supplier_item=id_supplier_item,
+            unit_cost=unit_cost,
+            stock=stock,
         )
 
-        if best is None:
-            best = candidate
-            continue
+        # -------- best_any (independente de stock) --------
+        if best_any is None:
+            best_any = candidate
+        else:
+            if candidate.unit_cost < best_any.unit_cost:
+                best_any = candidate
+            elif candidate.unit_cost == best_any.unit_cost:
+                if candidate.stock > best_any.stock or (
+                    candidate.stock == best_any.stock
+                    and candidate.id_supplier < best_any.id_supplier
+                ):
+                    best_any = candidate
 
-        # preço menor → melhor
-        if candidate.unit_cost < best.unit_cost:
-            best = candidate
-            continue
+        # -------- best_in_stock (stock > 0) --------
+        if stock > 0:
+            if best_in_stock is None:
+                best_in_stock = candidate
+            else:
+                if candidate.unit_cost < best_in_stock.unit_cost:
+                    best_in_stock = candidate
+                elif candidate.unit_cost == best_in_stock.unit_cost:
+                    if candidate.stock > best_in_stock.stock or (
+                        candidate.stock == best_in_stock.stock
+                        and candidate.id_supplier < best_in_stock.id_supplier
+                    ):
+                        best_in_stock = candidate
 
-        # se preço igual → maior stock
-        if candidate.unit_cost == best.unit_cost:
-            if candidate.stock > best.stock:
-                best = candidate
-                continue
-            # se stock igual → menor id_supplier
-            if candidate.stock == best.stock and candidate.id_supplier < best.id_supplier:
-                best = candidate
-                continue
+    # Preferir SEMPRE quem tem stock > 0, se existir
+    if best_in_stock is not None:
+        return best_in_stock
 
-    return best
+    # Caso contrário, se houver alguma oferta (mesmo stock 0), usar essa
+    return best_any
 
 
 def recalculate_active_offer_for_product(
@@ -90,29 +130,31 @@ def recalculate_active_offer_for_product(
     Recalcula a oferta ativa de um produto com base nas SupplierItem atuais.
 
     - Se existir uma best offer → atualiza ProductActiveOffer com supplier/item/custo/stock.
-    - Se não existir nenhuma (sem stock) → mantém o registo mas zera supplier/item e stock.
+    - Se não existir nenhuma (sem qualquer oferta) → limpa supplier/item e stock.
 
-    NÃO faz commit — fica a cargo do UoW/usecase chamador.
+    NOTA: Mesmo que a best offer tenha stock = 0, o registo fica com esse
+    supplier e stock_sent = 0 — útil para UI/análise. O PrestaShop continuará
+    a ver stock 0, não há risco de vender o que não existe.
     """
     pao_repo = ProductActiveOfferWriteRepository(db)
 
     best = get_best_offer_for_product(db, id_product=id_product)
 
     if best is None:
-        # Sem ofertas com stock > 0 → oferta ativa "vazia"
+        # Sem ofertas → oferta ativa completamente vazia
         entity = pao_repo.upsert(
             id_product=id_product,
             id_supplier=None,
             id_supplier_item=None,
             unit_cost=None,
-            unit_price_sent=None,  # preço PS vem na fase seguinte (margens)
+            unit_price_sent=None,
             stock_sent=0,
         )
     else:
         entity = pao_repo.upsert(
             id_product=id_product,
             id_supplier=best.id_supplier,
-            id_supplier_item=best.id_supplier_item,
+            id_supplier_item=best.id_supplier_item,  # pode ser None, está ok
             unit_cost=best.unit_cost,
             unit_price_sent=None,  # a calcular quando formos syncar com PS
             stock_sent=best.stock,

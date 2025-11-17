@@ -1,12 +1,18 @@
-# app/domains/catalog/read_services/product_detail.py
 from __future__ import annotations
 from dataclasses import dataclass
+
 from app.infra.uow import UoW
-from app.helpers.best_offer import best_offer
+from app.repositories.catalog.read.product_active_offer_read_repo import (
+    ProductActiveOfferReadRepository,
+)
 from app.repositories.catalog.read.product_meta_read_repo import ProductMetaReadRepository
 from app.repositories.catalog.read.products_read_repo import ProductsReadRepository
-from app.repositories.procurement.read.product_event_read_repo import ProductEventReadRepository
-from app.repositories.procurement.read.supplier_item_read_repo import SupplierItemReadRepository
+from app.repositories.procurement.read.product_event_read_repo import (
+    ProductEventReadRepository,
+)
+from app.repositories.procurement.read.supplier_item_read_repo import (
+    SupplierItemReadRepository,
+)
 from app.schemas.products import (
     ProductOut,
     ProductMetaOut,
@@ -16,7 +22,11 @@ from app.schemas.products import (
     ProductStatsOut,
     SeriesPointOut,
 )
-from .series import aggregate_daily_points  # extrai o helper
+from app.domains.catalog.services.mappers import (
+    map_product_row_to_out,
+    map_offer_row_to_out,
+)
+from .series import aggregate_daily_points
 
 
 @dataclass(frozen=True)
@@ -40,29 +50,17 @@ def get_product_detail(uow: UoW, *, id_product: int, opts: DetailOptions) -> Pro
 
         raise NotFound("Product not found")
 
-    p = ProductOut(
-        id=row.id,
-        gtin=row.gtin,
-        id_ecommerce=row.id_ecommerce,
-        id_brand=row.id_brand,
-        brand_name=row.brand_name,
-        id_category=row.id_category,
-        category_name=row.category_name,
-        partnumber=row.partnumber,
-        name=row.name,
-        description=row.description,
-        image_url=row.image_url,
-        weight_str=row.weight_str,
-        created_at=row.created_at,
-        updated_at=row.updated_at,
-    )
+    # usar mapper base (sem offers)
+    p: ProductOut = map_product_row_to_out(row)
 
     # 2) meta
     meta_list: list[ProductMetaOut] = []
     if opts.expand_meta:
         m_repo = ProductMetaReadRepository(db)
         ms = m_repo.list_for_product(p.id)
-        meta_list = [ProductMetaOut(name=m.name, value=m.value or "") for m in ms]
+        meta_list = [
+            ProductMetaOut(name=m.name, value=m.value or "", created_at=m.created_at) for m in ms
+        ]
 
     # 3) ofertas
     offers: list[OfferOut] = []
@@ -72,24 +70,23 @@ def get_product_detail(uow: UoW, *, id_product: int, opts: DetailOptions) -> Pro
         si_repo = SupplierItemReadRepository(db)
         offers_raw = si_repo.list_offers_for_product(p.id, only_in_stock=False)
         for o in offers_raw:
-            offer = OfferOut(
-                id_supplier=o["id_supplier"],
-                supplier_name=o.get("supplier_name"),
-                supplier_image=o.get("supplier_image"),
-                id_feed=o["id_feed"],
-                sku=o["sku"],
-                price=o["price"],
-                stock=o["stock"],
-                id_last_seen_run=o.get("id_last_seen_run"),
-                updated_at=o.get("updated_at"),
-            )
+            offer: OfferOut = map_offer_row_to_out(o)
             offers.append(offer)
             if (offer.stock or 0) > 0:
                 offers_in_stock += 1
             if o.get("id_supplier"):
                 suppliers_set.add(int(o["id_supplier"]))
 
-    best = best_offer(offers) if offers else None
+    # 3.1) best_offer = oferta do supplier ativo (ProductActiveOffer)
+    best = None
+    if offers:
+        pao_repo = ProductActiveOfferReadRepository(db)
+        pao = pao_repo.get_by_product(p.id)
+        if pao and pao.id_supplier is not None:
+            for o in offers:
+                if o.id_supplier == pao.id_supplier:
+                    best = o
+                    break
 
     # 4) eventos + séries
     events_out: list[ProductEventOut] | None = None
@@ -104,7 +101,7 @@ def get_product_detail(uow: UoW, *, id_product: int, opts: DetailOptions) -> Pro
         if evs:
             events_out = [
                 ProductEventOut(
-                    created_at=e["created_at"],  # <- manter assim
+                    created_at=e["created_at"],
                     reason=e["reason"],
                     price=e.get("price"),
                     stock=e.get("stock"),

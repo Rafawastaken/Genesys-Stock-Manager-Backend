@@ -1,4 +1,3 @@
-# app/schemas/products.py
 from __future__ import annotations
 from datetime import datetime
 
@@ -18,6 +17,11 @@ class OfferOut(BaseModel):
 
 
 class ProductOut(BaseModel):
+    """
+    Produto base: NUNCA tem offers nem best_offer.
+    É usado no detalhe dentro de ProductDetailOut.product.
+    """
+
     id: int
     gtin: str | None = None
     id_ecommerce: int | None = None
@@ -27,18 +31,26 @@ class ProductOut(BaseModel):
     category_name: str | None = None
     partnumber: str | None = None
     name: str | None = None
+    margin: float | None = None
     description: str | None = None
     image_url: str | None = None
-    # category_path removido
     weight_str: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
-    offers: list[OfferOut] = []
+
+
+class ProductListItemOut(ProductOut):
+    """
+    Produto específico para listagens: tem sempre os campos de produto base
+    + as ofertas agregadas + best_offer.
+    """
+
+    offers: list[OfferOut] = Field(default_factory=list)
     best_offer: OfferOut | None = None
 
 
 class ProductListOut(BaseModel):
-    items: list[ProductOut]
+    items: list[ProductListItemOut]
     total: int
     page: int
     page_size: int
@@ -50,11 +62,12 @@ class ProductListOut(BaseModel):
 class ProductMetaOut(BaseModel):
     name: str
     value: str
+    created_at: datetime
 
 
 class ProductEventOut(BaseModel):
     model_config = ConfigDict(extra="forbid")  # apanha campos errados cedo
-    created_at: datetime  # <- CHAVE OFICIAL
+    created_at: datetime
     reason: str
     price: str | None = None
     stock: int | None = None
@@ -78,6 +91,12 @@ class ProductStatsOut(BaseModel):
 
 
 class ProductDetailOut(BaseModel):
+    """
+    Detalhe completo de produto:
+    - product: info base
+    - offers/best_offer: SEMPRE aqui, nunca em product.*
+    """
+
     product: ProductOut
     meta: list[ProductMetaOut] = Field(default_factory=list)
     offers: list[OfferOut] = Field(default_factory=list)

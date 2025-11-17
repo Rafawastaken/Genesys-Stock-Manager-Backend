@@ -16,6 +16,8 @@ from app.infra.uow import UoW
 
 router = APIRouter(prefix="/products", tags=["products"])
 log = logging.getLogger("gsm.api.products")
+
+# Aqui está o Depends já embutido
 UowDep = Annotated[UoW, Depends(get_uow)]
 
 
@@ -26,6 +28,7 @@ UowDep = Annotated[UoW, Depends(get_uow)]
     response_model=ProductListOut,
 )
 def list_products(
+    uow: UowDep,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     q: str | None = Query(None),
@@ -39,7 +42,6 @@ def list_products(
     id_supplier: int | None = Query(None),
     sort: Literal["recent", "name", "cheapest"] = Query("recent"),
     expand_offers: bool = Query(True),
-    uow: UoW = Depends(get_uow),
 ):
     return uc_q_list_products(
         uow,
@@ -66,6 +68,7 @@ def list_products(
     summary="Get Product Details by ID",
 )
 def get_product_detail(
+    uow: UowDep,
     id_product: int,
     expand_meta: bool = Query(True),
     expand_offers: bool = Query(True),
@@ -73,7 +76,6 @@ def get_product_detail(
     events_days: int | None = Query(90, ge=1, le=3650),
     events_limit: int | None = Query(2000, ge=1, le=100000),
     aggregate_daily: bool = Query(True),
-    uow: UoW = Depends(get_uow),
 ):
     return uc_q_product_detail(
         uow,
@@ -94,6 +96,7 @@ def get_product_detail(
     summary="Get Product Detail by GTIN",
 )
 def get_product_detail_by_gtin(
+    uow: UowDep,
     gtin: Annotated[str, Path(min_length=8, max_length=18, pattern=r"^\d{8,18}$")],
     expand_meta: bool = Query(True),
     expand_offers: bool = Query(True),
@@ -101,7 +104,6 @@ def get_product_detail_by_gtin(
     events_days: int | None = Query(90, ge=1, le=3650),
     events_limit: int | None = Query(2000, ge=1, le=100000),
     aggregate_daily: bool = Query(True),
-    uow: UoW = Depends(get_uow),
 ) -> ProductDetailOut:
     return uc_q_product_detail_by_gtin(
         uow,
