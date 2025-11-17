@@ -9,11 +9,11 @@ from app.core.deps import get_uow, require_access_token
 from app.schemas.brands import BrandListOut
 from app.domains.catalog.usecases.brands import list_brands as uc_list
 
-router = APIRouter(prefix="/brands", tags=["brands"])
+router = APIRouter(prefix="/brands", tags=["brands"], dependencies=[Depends(require_access_token)])
 UowDep = Annotated[UoW, Depends(get_uow)]
 
 
-@router.get("", response_model=BrandListOut, dependencies=[Depends(require_access_token)])
+@router.get("", response_model=BrandListOut)
 def list_brands(
     uow: UowDep,  # <— primeiro
     search: str | None = Query(None),

@@ -8,11 +8,15 @@ from app.core.deps import get_uow, require_access_token
 from app.schemas.categories import CategoryListOut
 from app.domains.catalog.usecases.categories import list_categories as uc_list
 
-router = APIRouter(prefix="/categories", tags=["categories"])
+router = APIRouter(
+    prefix="/categories",
+    tags=["categories"],
+    dependencies=[Depends(require_access_token)],
+)
 UowDep = Annotated[UoW, Depends(get_uow)]
 
 
-@router.get("", response_model=CategoryListOut, dependencies=[Depends(require_access_token)])
+@router.get("", response_model=CategoryListOut)
 def list_categories(
     uow: UowDep,
     search: str | None = Query(None),

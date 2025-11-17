@@ -11,10 +11,12 @@ from typing import Any
 from sqlalchemy.exc import IntegrityError
 
 from app.core.errors import InvalidArgument, NotFound
+from app.models.product import Product
 from app.core.normalize import normalize_images, normalize_simple
 from app.domains.catalog.services.active_offer import (
     recalculate_active_offer_for_product,
 )
+from app.domains.catalog.services.sync_events import emit_product_state_event
 from app.domains.mapping.engine import IngestEngine
 from app.external.feed_downloader import http_download, parse_rows_json
 from app.infra.uow import UoW
@@ -262,9 +264,32 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
 
         log.info("[run=%s] EOL marked=%s", id_run, eol_marked)
 
-        # Recalcular oferta ativa para todos os produtos afetados neste run
+        # Recalcular oferta ativa e emitir eventos apenas para produtos já importados (id_ecommerce)
         for id_product in affected_products:
-            recalculate_active_offer_for_product(uow.db, id_product=id_product)
+            # ORM Product atual
+            product = uow.db.get(Product, id_product)
+            if not product:
+                continue
+
+            # snapshot de stock antes de recalcular (stock da active_offer atual)
+            prev_stock: int | None = None
+            if product.active_offer is not None:
+                prev_stock = product.active_offer.stock_sent
+
+            # recalcula ProductActiveOffer com base nas SupplierItem atuais
+            new_active = recalculate_active_offer_for_product(uow.db, id_product=id_product)
+
+            # (id_ecommerce válido)
+            if not product.id_ecommerce or product.id_ecommerce <= 0:
+                continue
+
+            emit_product_state_event(
+                uow.db,
+                product=product,
+                active_offer=new_active,
+                reason="ingest_supplier",
+                prev_stock=prev_stock,
+            )
 
         # finaliza
         run_w.finalize_ok(

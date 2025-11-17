@@ -11,7 +11,7 @@ ALGO = "HS256"
 class DecodedToken(TypedDict, total=False):
     sub: str
     role: str
-    name: str  # ← agora suportado
+    name: str
     typ: str
     exp: int
     iat: int

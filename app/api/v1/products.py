@@ -7,14 +7,20 @@ from fastapi import APIRouter, Depends, Query, Path
 
 from app.core.deps import get_uow, require_access_token
 from app.schemas.products import ProductDetailOut, ProductListOut
-from app.domains.catalog.usecases.products.list_products import execute as uc_q_list_products
-from app.domains.catalog.usecases.products.get_product_detail import execute as uc_q_product_detail
+from app.domains.catalog.usecases.products.list_products import (
+    execute as uc_q_list_products,
+)
+from app.domains.catalog.usecases.products.get_product_detail import (
+    execute as uc_q_product_detail,
+)
 from app.domains.catalog.usecases.products.get_product_by_gtin import (
     execute as uc_q_product_detail_by_gtin,
 )
 from app.infra.uow import UoW
 
-router = APIRouter(prefix="/products", tags=["products"])
+router = APIRouter(
+    prefix="/products", tags=["products"], dependencies=[Depends(require_access_token)]
+)
 log = logging.getLogger("gsm.api.products")
 
 # Aqui está o Depends já embutido
@@ -23,7 +29,6 @@ UowDep = Annotated[UoW, Depends(get_uow)]
 
 @router.get(
     "",
-    dependencies=[Depends(require_access_token)],
     summary="Get Product List",
     response_model=ProductListOut,
 )
@@ -63,7 +68,6 @@ def list_products(
 
 @router.get(
     "/{id_product}",
-    dependencies=[Depends(require_access_token)],
     response_model=ProductDetailOut,
     summary="Get Product Details by ID",
 )
@@ -92,7 +96,6 @@ def get_product_detail(
 @router.get(
     "/gtin/{gtin}",
     response_model=ProductDetailOut,
-    dependencies=[Depends(require_access_token)],
     summary="Get Product Detail by GTIN",
 )
 def get_product_detail_by_gtin(

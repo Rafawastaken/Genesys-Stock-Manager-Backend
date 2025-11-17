@@ -8,12 +8,16 @@ from fastapi import APIRouter, Depends, status
 
 from app.core.deps import get_uow, require_access_token
 from app.core.deps.providers import get_feed_preview
-from app.domains.procurement.usecases.feeds.delete_supplier_feed import execute as uc_delete
+from app.domains.procurement.usecases.feeds.delete_supplier_feed import (
+    execute as uc_delete,
+)
 from app.domains.procurement.usecases.feeds.get_by_supplier import (
     execute as uc_get_feed_by_supplier,
 )
 from app.domains.procurement.usecases.feeds.test_feed import execute as uc_test
-from app.domains.procurement.usecases.feeds.upsert_supplier_feed import execute as uc_upsert
+from app.domains.procurement.usecases.feeds.upsert_supplier_feed import (
+    execute as uc_upsert,
+)
 from app.infra.uow import UoW
 from app.schemas.feeds import (
     FeedTestRequest,
@@ -23,7 +27,7 @@ from app.schemas.feeds import (
     SupplierFeedUpdate,
 )
 
-router = APIRouter(prefix="/feeds", tags=["feeds"])
+router = APIRouter(prefix="/feeds", tags=["feeds"], dependencies=[Depends(require_access_token)])
 UowDep = Annotated[UoW, Depends(get_uow)]
 log = logging.getLogger("gsm.api.feeds")
 
@@ -31,7 +35,6 @@ log = logging.getLogger("gsm.api.feeds")
 @router.get(
     "/supplier/{id_supplier}",
     response_model=SupplierFeedOut,
-    dependencies=[Depends(require_access_token)],
 )
 def get_supplier_feed(
     id_supplier: int,
@@ -44,7 +47,6 @@ def get_supplier_feed(
 @router.put(
     "/supplier/{id_supplier}",
     response_model=SupplierFeedOut,
-    dependencies=[Depends(require_access_token)],
 )
 def upsert_supplier_feed(
     id_supplier: int,
@@ -58,7 +60,6 @@ def upsert_supplier_feed(
 @router.delete(
     "/supplier/{id_supplier}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_access_token)],
 )
 def delete_supplier_feed(
     id_supplier: int,
@@ -69,6 +70,9 @@ def delete_supplier_feed(
     return
 
 
-@router.post("/test", response_model=FeedTestResponse, dependencies=[Depends(require_access_token)])
+@router.post(
+    "/test",
+    response_model=FeedTestResponse,
+)
 async def test_feed(*, payload: FeedTestRequest, preview=Depends(get_feed_preview)):
     return await uc_test(payload, preview_feed=preview)
