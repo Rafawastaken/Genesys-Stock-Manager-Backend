@@ -13,6 +13,7 @@ from .supplier import Supplier
 from .supplier_feed import SupplierFeed
 from .supplier_item import SupplierItem
 from .product_active_offer import ProductActiveOffer
+from .catalog_update_stream import CatalogUpdateStream
 
 __all__ = [
     "Base",
@@ -30,6 +31,7 @@ __all__ = [
     "SupplierFeed",
     "SupplierItem",
     "ProductActiveOffer",
+    "CatalogUpdateStream",
 ]
 
 
