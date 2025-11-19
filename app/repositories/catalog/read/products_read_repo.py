@@ -206,3 +206,29 @@ class ProductsReadRepository:
             return None
         stmt = select(Product.id).where(Product.gtin == gtin)
         return self.db.scalar(stmt)
+
+    # Margem de produto
+    def get_product_margin(self, id_product: int) -> float:
+        """
+        Devolve a margin do produto como float normalizado (>= 0).
+        Se não houver produto ou margin inválida, devolve 0.0.
+        """
+        if not id_product:
+            return 0.0
+
+        product = self.db.get(Product, id_product)
+        if product is None or product.margin is None:
+            return 0.0
+
+        try:
+            margin = float(product.margin)
+        except (TypeError, ValueError):
+            return 0.0
+
+        if margin < 0:
+            margin = 0.0
+
+        # Se quiseres, podes meter um clamp aqui, ex:
+        # if margin > 5: margin = 5.0
+
+        return margin

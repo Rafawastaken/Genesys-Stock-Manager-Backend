@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+
 from sqlalchemy.orm import Session
 
 from app.models.product_active_offer import ProductActiveOffer
+from app.repositories.catalog.read.products_read_repo import ProductsReadRepository
 from app.repositories.catalog.write.product_active_offer_write_repo import (
     ProductActiveOfferWriteRepository,
 )
@@ -16,7 +18,7 @@ from app.repositories.procurement.read.supplier_item_read_repo import (
 @dataclass
 class ActiveOfferCandidate:
     id_supplier: int
-    id_supplier_item: int | None  # <-- AGORA PODE SER None
+    id_supplier_item: int | None
     unit_cost: float
     stock: int
 
@@ -51,9 +53,6 @@ def choose_active_offer_candidate(
         return None
 
     si_repo = SupplierItemReadRepository(db)
-
-    # Read repo devolve rows/dicts com campos tipo:
-    # id_product, id_supplier, price, stock, ...
     offers = si_repo.list_offers_for_product(id_product, only_in_stock=False)
 
     best_any: ActiveOfferCandidate | None = None
@@ -63,11 +62,9 @@ def choose_active_offer_candidate(
         raw_price = _get(item, "price")
         raw_stock = _get(item, "stock")
         id_supplier = _get(item, "id_supplier")
-        # pode NÃO existir; tudo bem
         raw_id_supplier_item = _get(item, "id_supplier_item") or _get(item, "id")
 
         if raw_price is None or raw_stock is None or id_supplier is None:
-            # sem estes não dá mesmo para decidir
             continue
 
         try:
@@ -112,11 +109,9 @@ def choose_active_offer_candidate(
                     ):
                         best_in_stock = candidate
 
-    # Preferir SEMPRE quem tem stock > 0, se existir
     if best_in_stock is not None:
         return best_in_stock
 
-    # Caso contrário, se houver alguma oferta (mesmo stock 0), usar essa
     return best_any
 
 
@@ -128,19 +123,17 @@ def recalculate_active_offer_for_product(
     """
     Recalcula a oferta ativa de um produto com base nas SupplierItem atuais.
 
-    - Se existir uma best offer → atualiza ProductActiveOffer com supplier/item/custo/stock.
-    - Se não existir nenhuma (sem qualquer oferta) → limpa supplier/item e stock.
-
-    NOTA: Mesmo que a best offer tenha stock = 0, o registo fica com esse
-    supplier e stock_sent = 0 — útil para UI/análise. O PrestaShop continuará
-    a ver stock 0, não há risco de vender o que não existe.
+    - Se existir candidato → atualiza ProductActiveOffer com supplier/item/custo/stock/preço com margem.
+    - Se não existir nenhuma oferta → limpa supplier/item/preço e stock=0.
     """
     pao_repo = ProductActiveOfferWriteRepository(db)
+    p_repo = ProductsReadRepository(db)
 
+    margin = p_repo.get_product_margin(id_product)
     best = choose_active_offer_candidate(db, id_product=id_product)
 
+    # Sem qualquer oferta → limpamos a active_offer
     if best is None:
-        # Sem ofertas → oferta ativa completamente vazia
         entity = pao_repo.upsert(
             id_product=id_product,
             id_supplier=None,
@@ -149,14 +142,28 @@ def recalculate_active_offer_for_product(
             unit_price_sent=None,
             stock_sent=0,
         )
-    else:
-        entity = pao_repo.upsert(
-            id_product=id_product,
-            id_supplier=best.id_supplier,
-            id_supplier_item=best.id_supplier_item,  # pode ser None, está ok
-            unit_cost=best.unit_cost,
-            unit_price_sent=None,  # a calcular quando formos syncar com PS
-            stock_sent=best.stock,
-        )
+        return entity
+
+    # Há oferta candidata → aplicar margin
+    unit_cost = best.unit_cost
+    stock_sent = best.stock
+    id_supplier = best.id_supplier
+    id_supplier_item = best.id_supplier_item
+
+    unit_price_sent: float | None = None
+    try:
+        unit_price_sent = round(unit_cost * (1 + margin), 2)
+    except TypeError:
+        # margin devia vir sempre normalizada, mas se der porcaria: preço = custo
+        unit_price_sent = unit_cost
+
+    entity = pao_repo.upsert(
+        id_product=id_product,
+        id_supplier=id_supplier,
+        id_supplier_item=id_supplier_item,
+        unit_cost=unit_cost,
+        unit_price_sent=unit_price_sent,
+        stock_sent=stock_sent,
+    )
 
     return entity

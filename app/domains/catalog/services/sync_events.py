@@ -1,6 +1,9 @@
 # app/domains/catalog/services/sync_events.py
 from __future__ import annotations
 
+from typing import Any
+from collections.abc import Mapping
+
 from sqlalchemy.orm import Session
 
 from app.models.product import Product
@@ -10,19 +13,25 @@ from app.repositories.catalog.write.catalog_update_stream_write_repo import (
 )
 
 
-def compute_priority(
-    *,
-    prev_stock: int | None,
-    new_stock: int | None,
-) -> int:
-    prev = prev_stock or 0
-    new = new_stock or 0
+def _snapshot_active_offer(ao: ProductActiveOffer | None) -> dict[str, Any]:
+    """
+    Normaliza a oferta ativa para um dict estável, focado nos campos
+    relevantes para o PrestaShop.
+    """
+    if ao is None:
+        return {
+            "id_supplier": None,
+            "id_supplier_item": None,
+            "unit_price_sent": None,
+            "stock_sent": 0,
+        }
 
-    if prev > 0 and new == 0:
-        return 10  # crítico: ficou esgotado
-    if prev == 0 and new > 0:
-        return 8  # importante: voltou a ter stock
-    return 5  # default
+    return {
+        "id_supplier": ao.id_supplier,
+        "id_supplier_item": ao.id_supplier_item,
+        "unit_price_sent": float(ao.unit_price_sent) if ao.unit_price_sent is not None else None,
+        "stock_sent": int(ao.stock_sent or 0),
+    }
 
 
 def emit_product_state_event(
@@ -31,11 +40,59 @@ def emit_product_state_event(
     product: Product,
     active_offer: ProductActiveOffer | None,
     reason: str,
-    prev_stock: int | None,
+    prev_active_snapshot: Mapping[str, Any] | None = None,
 ) -> None:
+    """
+    Enfileira um evento de `product_state_changed` **apenas** se o estado
+    efetivo da oferta comunicada tiver mudado (fornecedor, preço enviado, stock).
+
+    - Se não houver id_ecommerce -> não faz nada.
+    - Se o snapshot anterior == snapshot atual -> não faz nada.
+    - Caso contrário -> enfileira no CatalogUpdateStream com prioridade
+      baseada em transição de stock.
+    """
+    # Só faz sentido emitir para produtos ligados ao PrestaShop
+    if not product.id_ecommerce or product.id_ecommerce <= 0:
+        return
+
+    current = _snapshot_active_offer(active_offer)
+
+    # --- short-circuit: nada mudou, nada a emitir ---
+    if prev_active_snapshot is not None:
+        keys = ("id_supplier", "id_supplier_item", "unit_price_sent", "stock_sent")
+        prev_norm = {k: prev_active_snapshot.get(k) for k in keys}
+        curr_norm = {k: current.get(k) for k in keys}
+
+        if prev_norm == curr_norm:
+            # Exatamente o que estás a ver nos teus exemplos:
+            # 1) e 2) têm supplier, preço enviado e stock iguais → não enfileiramos.
+            return
+
+    # --- prioridade com base em transição de stock ---
+    old_stock = None
+    if prev_active_snapshot is not None:
+        old_stock = prev_active_snapshot.get("stock_sent")
+
+    new_stock = current.get("stock_sent")
+
+    priority = 5  # default
+
+    try:
+        old_i = int(old_stock) if old_stock is not None else None
+        new_i = int(new_stock) if new_stock is not None else None
+    except (TypeError, ValueError):
+        old_i = None
+        new_i = None
+
+    if old_i is not None and new_i is not None:
+        if old_i <= 0 and new_i > 0:
+            # voltou a ter stock
+            priority = 9
+        elif old_i > 0 and new_i == 0:
+            # ficou sem stock
+            priority = 7
+
     repo = CatalogUpdateStreamWriteRepository(db)
-    new_stock = active_offer.stock_sent if active_offer else 0
-    priority = compute_priority(prev_stock=prev_stock, new_stock=new_stock)
     repo.enqueue_product_state_change(
         product=product,
         active_offer=active_offer,
