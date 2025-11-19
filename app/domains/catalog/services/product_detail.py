@@ -1,6 +1,11 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 
+from app.domains.catalog.services.mappers import (
+    map_product_row_to_out,
+    map_offer_row_to_out,
+)
 from app.infra.uow import UoW
 from app.repositories.catalog.read.product_active_offer_read_repo import (
     ProductActiveOfferReadRepository,
@@ -21,10 +26,6 @@ from app.schemas.products import (
     ProductDetailOut,
     ProductStatsOut,
     SeriesPointOut,
-)
-from app.domains.catalog.services.mappers import (
-    map_product_row_to_out,
-    map_offer_row_to_out,
 )
 from .series import aggregate_daily_points
 
@@ -77,15 +78,31 @@ def get_product_detail(uow: UoW, *, id_product: int, opts: DetailOptions) -> Pro
             if o.get("id_supplier"):
                 suppliers_set.add(int(o["id_supplier"]))
 
-    # 3.1) best_offer = oferta do supplier ativo (ProductActiveOffer)
-    best = None
+    # 3.1) best_offer = melhor oferta COM STOCK (menor preço)
+    best: OfferOut | None = None
     if offers:
+        candidates: list[OfferOut] = [
+            o for o in offers if o.stock is not None and o.stock > 0 and o.price is not None
+        ]
+        if candidates:
+
+            def price_key(of: OfferOut) -> float:
+                try:
+                    return float(of.price) if of.price is not None else float("inf")
+                except (TypeError, ValueError):
+                    return float("inf")
+
+            best = min(candidates, key=price_key)
+
+    # 3.2) active_offer = oferta ativa/comunicada (ProductActiveOffer)
+    active_offer: OfferOut | None = None
+    if p.id_ecommerce and p.id_ecommerce > 0 and offers:
         pao_repo = ProductActiveOfferReadRepository(db)
         pao = pao_repo.get_by_product(p.id)
         if pao and pao.id_supplier is not None:
             for o in offers:
                 if o.id_supplier == pao.id_supplier:
-                    best = o
+                    active_offer = o
                     break
 
     # 4) eventos + séries
@@ -134,6 +151,7 @@ def get_product_detail(uow: UoW, *, id_product: int, opts: DetailOptions) -> Pro
         meta=meta_list,
         offers=offers,
         best_offer=best,
+        active_offer=active_offer,
         stats=stats,
         events=events_out,
         series_daily=series_daily,

@@ -2,20 +2,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-
 from sqlalchemy.orm import Session
 
-from app.repositories.procurement.read.supplier_item_read_repo import (
-    SupplierItemReadRepository,
-)
+from app.models.product_active_offer import ProductActiveOffer
 from app.repositories.catalog.write.product_active_offer_write_repo import (
     ProductActiveOfferWriteRepository,
 )
-from app.models.product_active_offer import ProductActiveOffer
+from app.repositories.procurement.read.supplier_item_read_repo import (
+    SupplierItemReadRepository,
+)
 
 
 @dataclass
-class BestOfferResult:
+class ActiveOfferCandidate:
     id_supplier: int
     id_supplier_item: int | None  # <-- AGORA PODE SER None
     unit_cost: float
@@ -31,11 +30,11 @@ def _get(obj, key: str):
     return getattr(obj, key, None)
 
 
-def get_best_offer_for_product(
+def choose_active_offer_candidate(
     db: Session,
     *,
     id_product: int,
-) -> BestOfferResult | None:
+) -> ActiveOfferCandidate | None:
     """
     Decide a melhor oferta para um produto com base nas SupplierItem.
 
@@ -57,8 +56,8 @@ def get_best_offer_for_product(
     # id_product, id_supplier, price, stock, ...
     offers = si_repo.list_offers_for_product(id_product, only_in_stock=False)
 
-    best_any: BestOfferResult | None = None
-    best_in_stock: BestOfferResult | None = None
+    best_any: ActiveOfferCandidate | None = None
+    best_in_stock: ActiveOfferCandidate | None = None
 
     for item in offers:
         raw_price = _get(item, "price")
@@ -79,7 +78,7 @@ def get_best_offer_for_product(
 
         id_supplier_item = int(raw_id_supplier_item) if raw_id_supplier_item is not None else None
 
-        candidate = BestOfferResult(
+        candidate = ActiveOfferCandidate(
             id_supplier=int(id_supplier),
             id_supplier_item=id_supplier_item,
             unit_cost=unit_cost,
@@ -138,7 +137,7 @@ def recalculate_active_offer_for_product(
     """
     pao_repo = ProductActiveOfferWriteRepository(db)
 
-    best = get_best_offer_for_product(db, id_product=id_product)
+    best = choose_active_offer_candidate(db, id_product=id_product)
 
     if best is None:
         # Sem ofertas → oferta ativa completamente vazia

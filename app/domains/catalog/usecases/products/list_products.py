@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-from app.infra.uow import UoW
-from app.repositories.catalog.read.products_read_repo import ProductsReadRepository
-from app.repositories.catalog.read.product_active_offer_read_repo import (
-    ProductActiveOfferReadRepository,
-)
-from app.repositories.procurement.read.supplier_item_read_repo import (
-    SupplierItemReadRepository,
-)
-from app.schemas.products import OfferOut, ProductListOut, ProductListItemOut
 from app.domains.catalog.services.mappers import (
     map_product_row_to_list_item,
     map_offer_row_to_out,
 )
+from app.infra.uow import UoW
+from app.repositories.catalog.read.product_active_offer_read_repo import (
+    ProductActiveOfferReadRepository,
+)
+from app.repositories.catalog.read.products_read_repo import ProductsReadRepository
+from app.repositories.procurement.read.supplier_item_read_repo import (
+    SupplierItemReadRepository,
+)
+from app.schemas.products import OfferOut, ProductListOut, ProductListItemOut
 
 
 def execute(
@@ -69,22 +69,49 @@ def execute(
             offer: OfferOut = map_offer_row_to_out(o)
             items_map[o["id_product"]].offers.append(offer)
 
-    # 4) best_offer vem SEMPRE da ProductActiveOffer (DB)
+        # 4) best_offer = melhor oferta COM STOCK (menor preço)
+    for po in items_map.values():
+        best: OfferOut | None = None
+        offers = po.offers
+
+        if offers:
+            candidates: list[OfferOut] = [
+                o for o in offers if o.stock is not None and o.stock > 0 and o.price is not None
+            ]
+            if candidates:
+
+                def price_key(of: OfferOut) -> float:
+                    try:
+                        return float(of.price) if of.price is not None else float("inf")
+                    except (TypeError, ValueError):
+                        return float("inf")
+
+                best = min(candidates, key=price_key)
+
+        po.best_offer = best
+
+        # 5) active_offer = oferta ativa/comunicada (ProductActiveOffer)
     pao_repo = ProductActiveOfferReadRepository(db)
     active_map = pao_repo.list_for_products(ids)
 
     for po in items_map.values():
-        best = None
+        active: OfferOut | None = None
         offers = po.offers
         pao = active_map.get(po.id)
 
-        if pao and pao.id_supplier is not None and offers:
+        if (
+            po.id_ecommerce  # só faz sentido se estiver ligado ao PrestaShop
+            and po.id_ecommerce > 0
+            and pao
+            and pao.id_supplier is not None
+            and offers
+        ):
             for o in offers:
                 if o.id_supplier == pao.id_supplier:
-                    best = o
+                    active = o
                     break
 
-        po.best_offer = best
+        po.active_offer = active
 
     return ProductListOut(
         items=[items_map[i] for i in ids],

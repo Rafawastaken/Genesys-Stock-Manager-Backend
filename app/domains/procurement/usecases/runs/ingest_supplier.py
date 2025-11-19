@@ -6,12 +6,10 @@ import io
 import json
 import logging
 from contextlib import suppress
+from sqlalchemy.exc import IntegrityError
 from typing import Any
 
-from sqlalchemy.exc import IntegrityError
-
 from app.core.errors import InvalidArgument, NotFound
-from app.models.product import Product
 from app.core.normalize import normalize_images, normalize_simple
 from app.domains.catalog.services.active_offer import (
     recalculate_active_offer_for_product,
@@ -20,6 +18,7 @@ from app.domains.catalog.services.sync_events import emit_product_state_event
 from app.domains.mapping.engine import IngestEngine
 from app.external.feed_downloader import http_download, parse_rows_json
 from app.infra.uow import UoW
+from app.models.product import Product
 from app.repositories.catalog.write.product_write_repo import ProductWriteRepository
 from app.repositories.procurement.read.feed_run_read_repo import FeedRunReadRepository
 from app.repositories.procurement.read.mapper_read_repo import MapperReadRepository
@@ -82,7 +81,21 @@ def _split_payload(mapped: dict[str, Any]):
 
 
 async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> dict[str, Any]:
-    # repos (CQRS)
+    """
+        Download + parse feed
+    Mapeamento (IngestEngine)
+    Product.get_or_create + fill canonicals + brand/category + meta
+    SupplierItem.upsert → detecta created/changed
+    ProductSupplierEvent.record_from_item_change (init/change/eol)
+    Manténs affected_products
+    mark_eol_for_unseen_items → também adiciona products afetados
+    Para cada id_product em affected_products:
+    Se não tem id_ecommerce → ignoras para efeitos de active_offer/eventos
+    Se tem id_ecommerce:
+    recalculas ProductActiveOffer
+    comparas prev_stock vs new_stock
+    emit_product_state_event → CatalogUpdateStream com prioridade
+    """
     run_r = FeedRunReadRepository(uow.db)
     run_w = FeedRunWriteRepository(uow.db)
 
@@ -250,17 +263,13 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
                 log.info("[run=%s] progress %s/%s ok=%s bad=%s", id_run, idx, len(rows), ok, bad)
 
         # EOL dos itens não vistos neste run
-        eol_result = ev_w.mark_eol_for_unseen_items(
+        eol_products = ev_w.mark_eol_for_unseen_items(
             id_feed=feed.id,
             id_supplier=id_supplier,
             id_feed_run=id_run,
         )
-
-        if isinstance(eol_result, int):
-            eol_marked = eol_result
-        else:
-            eol_marked = len(eol_result)
-            affected_products.update(eol_result)
+        eol_marked = len(eol_products)
+        affected_products.update(eol_products)
 
         log.info("[run=%s] EOL marked=%s", id_run, eol_marked)
 
@@ -276,12 +285,12 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
             if product.active_offer is not None:
                 prev_stock = product.active_offer.stock_sent
 
-            # recalcula ProductActiveOffer com base nas SupplierItem atuais
-            new_active = recalculate_active_offer_for_product(uow.db, id_product=id_product)
-
             # (id_ecommerce válido)
             if not product.id_ecommerce or product.id_ecommerce <= 0:
                 continue
+
+            # recalcula ProductActiveOffer com base nas SupplierItem atuais
+            new_active = recalculate_active_offer_for_product(uow.db, id_product=id_product)
 
             emit_product_state_event(
                 uow.db,

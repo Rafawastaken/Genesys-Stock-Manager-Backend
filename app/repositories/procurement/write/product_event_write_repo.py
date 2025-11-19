@@ -44,10 +44,16 @@ class ProductEventWriteRepository:
         )
         return 1
 
-    def mark_eol_for_unseen_items(self, *, id_feed: int, id_supplier: int, id_feed_run: int) -> int:
+    def mark_eol_for_unseen_items(
+        self, *, id_feed: int, id_supplier: int, id_feed_run: int
+    ) -> list[int]:
         """
         Marca EOL (End-Of-Life) para itens desse feed que **não foram vistos** neste run.
-        Nota: há uma leitura auxiliar a SupplierItem para suportar a escrita dos eventos.
+
+        - Zera o stock do SupplierItem
+        - Atualiza o id_feed_run para este run (para não repetir EOL)
+        - Cria ProductSupplierEvent(reason="eol")
+        - Devolve lista de id_product afetados
         """
         unseen_items = self.db.scalars(
             select(SupplierItem).where(
@@ -56,18 +62,29 @@ class ProductEventWriteRepository:
             )
         ).all()
 
-        count = 0
+        affected_products: set[int] = set()
+
         for it in unseen_items:
-            self.db.add(
-                ProductSupplierEvent(
-                    id_product=it.id_product,
-                    id_supplier=id_supplier,
-                    gtin=it.gtin,
-                    price=it.price,
-                    stock=0,
-                    id_feed_run=id_feed_run,
-                    reason="eol",
+            # Se já estava a 0, podes discutir se vale a pena repetir, mas em geral:
+            if (it.stock or 0) == 0:
+                # ainda assim atualizamos o run para não repetir para sempre
+                it.id_feed_run = id_feed_run
+            else:
+                it.stock = 0
+                it.id_feed_run = id_feed_run
+
+                self.db.add(
+                    ProductSupplierEvent(
+                        id_product=it.id_product,
+                        id_supplier=id_supplier,
+                        gtin=it.gtin,
+                        price=it.price,
+                        stock=0,
+                        id_feed_run=id_feed_run,
+                        reason="eol",
+                    )
                 )
-            )
-            count += 1
-        return count
+
+            affected_products.add(it.id_product)
+
+        return list(affected_products)

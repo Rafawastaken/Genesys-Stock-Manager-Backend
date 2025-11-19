@@ -1,6 +1,6 @@
 from __future__ import annotations
-from datetime import datetime
 
+from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
 
 
@@ -47,6 +47,7 @@ class ProductListItemOut(ProductOut):
 
     offers: list[OfferOut] = Field(default_factory=list)
     best_offer: OfferOut | None = None
+    active_offer: OfferOut | None = None
 
 
 class ProductListOut(BaseModel):
@@ -101,6 +102,7 @@ class ProductDetailOut(BaseModel):
     meta: list[ProductMetaOut] = Field(default_factory=list)
     offers: list[OfferOut] = Field(default_factory=list)
     best_offer: OfferOut | None = None
+    active_offer: OfferOut | None = None
     stats: ProductStatsOut
     events: list[ProductEventOut] | None = None
     series_daily: list[SeriesPointOut] | None = None
