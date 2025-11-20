@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from app.models.product_active_offer import ProductActiveOffer
 from app.schemas.products import ProductOut, ProductListItemOut, OfferOut
 
 
@@ -55,4 +56,57 @@ def map_offer_row_to_out(src: Mapping[str, Any]) -> OfferOut:
         stock=src.get("stock"),
         id_last_seen_run=src.get("id_last_seen_run"),
         updated_at=src.get("updated_at"),
+    )
+
+
+def map_active_offer_from_pao_to_out(pao: ProductActiveOffer) -> OfferOut:
+    """Converte um ProductActiveOffer (snapshot enviado para o PrestaShop)
+    num OfferOut coerente com o resto da API.
+
+    - price vem de unit_price_sent
+    - stock vem de stock_sent
+    - supplier_name/image vêm do Supplier relacionado (se carregado)
+    - id_feed/sku/id_last_seen_run/updated_at vêm do SupplierItem relacionado, quando existir.
+    """
+    supplier = getattr(pao, "supplier", None)
+    supplier_item = getattr(pao, "supplier_item", None)
+
+    # preço enviado ao PrestaShop, em formato string (compatível com OfferOut.price)
+    price_str: str | None = None
+    if getattr(pao, "unit_price_sent", None) is not None:
+        try:
+            price_str = str(pao.unit_price_sent)
+        except Exception:
+            price_str = None
+
+    # stock enviado ao PrestaShop
+    stock_val = getattr(pao, "stock_sent", None)
+    stock_int: int | None
+    try:
+        stock_int = int(stock_val) if stock_val is not None else None
+    except (TypeError, ValueError):
+        stock_int = None
+
+    # Metadados vindos do SupplierItem (podem não existir se o registo tiver sido apagado)
+    if supplier_item is not None:
+        id_feed = supplier_item.id_feed
+        sku = supplier_item.sku
+        id_last_seen_run = supplier_item.id_feed_run
+        updated_at = supplier_item.updated_at or getattr(pao, "synced_at", None)
+    else:
+        id_feed = 0
+        sku = ""
+        id_last_seen_run = None
+        updated_at = getattr(pao, "synced_at", None)
+
+    return OfferOut(
+        id_supplier=int(pao.id_supplier),
+        supplier_name=getattr(supplier, "name", None) if supplier is not None else None,
+        supplier_image=getattr(supplier, "logo_image", None) if supplier is not None else None,
+        id_feed=id_feed,
+        sku=sku,
+        price=price_str,
+        stock=stock_int,
+        id_last_seen_run=id_last_seen_run,
+        updated_at=updated_at,
     )

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from app.domains.catalog.services.mappers import (
     map_product_row_to_out,
     map_offer_row_to_out,
+    map_active_offer_from_pao_to_out,
 )
 from app.infra.uow import UoW
 from app.repositories.catalog.read.product_active_offer_read_repo import (
@@ -47,20 +48,23 @@ def get_product_detail(uow: UoW, *, id_product: int, opts: DetailOptions) -> Pro
     p_repo = ProductsReadRepository(db)
     row = p_repo.get_product_with_names(id_product)
     if not row:
-        from app.core.errors import NotFound
+        raise ValueError(f"Product {id_product} not found")
 
-        raise NotFound("Product not found")
-
-    # usar mapper base (sem offers)
     p: ProductOut = map_product_row_to_out(row)
 
     # 2) meta
     meta_list: list[ProductMetaOut] = []
     if opts.expand_meta:
-        m_repo = ProductMetaReadRepository(db)
-        ms = m_repo.list_for_product(p.id)
+        meta_repo = ProductMetaReadRepository(db)
+        meta_rows = meta_repo.list_for_product(p.id)
         meta_list = [
-            ProductMetaOut(name=m.name, value=m.value or "", created_at=m.created_at) for m in ms
+            ProductMetaOut(
+                name=m.name,
+                value=m.value,
+                source=m.source,
+                created_at=m.created_at,
+            )
+            for m in meta_rows
         ]
 
     # 3) ofertas
@@ -96,14 +100,11 @@ def get_product_detail(uow: UoW, *, id_product: int, opts: DetailOptions) -> Pro
 
     # 3.2) active_offer = oferta ativa/comunicada (ProductActiveOffer)
     active_offer: OfferOut | None = None
-    if p.id_ecommerce and p.id_ecommerce > 0 and offers:
+    if p.id_ecommerce and p.id_ecommerce > 0:
         pao_repo = ProductActiveOfferReadRepository(db)
         pao = pao_repo.get_by_product(p.id)
         if pao and pao.id_supplier is not None:
-            for o in offers:
-                if o.id_supplier == pao.id_supplier:
-                    active_offer = o
-                    break
+            active_offer = map_active_offer_from_pao_to_out(pao)
 
     # 4) eventos + séries
     events_out: list[ProductEventOut] | None = None

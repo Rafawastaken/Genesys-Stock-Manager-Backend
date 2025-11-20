@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.domains.catalog.services.mappers import (
     map_product_row_to_list_item,
     map_offer_row_to_out,
+    map_active_offer_from_pao_to_out,
 )
 from app.infra.uow import UoW
 from app.repositories.catalog.read.product_active_offer_read_repo import (
@@ -34,9 +35,9 @@ def execute(
 ) -> ProductListOut:
     db = uow.db
 
-    # 1) Lista produtos via READ repo (sem SQL aqui)
-    prod_repo = ProductsReadRepository(db)
-    rows, total = prod_repo.list_products(
+    # 1) obter produtos paginados
+    repo = ProductsReadRepository(db)
+    rows, total = repo.list_products(
         page=page,
         page_size=page_size,
         q=q,
@@ -51,12 +52,9 @@ def execute(
         sort=sort,
     )
 
-    if not rows:
-        return ProductListOut(items=[], total=int(total), page=page, page_size=page_size)
-
-    # 2) Mapear rows → ProductListItemOut usando mapper comum
-    items_map: dict[int, ProductListItemOut] = {}
     ids: list[int] = []
+    items_map: dict[int, ProductListItemOut] = {}
+
     for r in rows:
         ids.append(r.id)
         items_map[r.id] = map_product_row_to_list_item(r)
@@ -69,7 +67,7 @@ def execute(
             offer: OfferOut = map_offer_row_to_out(o)
             items_map[o["id_product"]].offers.append(offer)
 
-        # 4) best_offer = melhor oferta COM STOCK (menor preço)
+    # 4) best_offer = melhor oferta COM STOCK (menor preço)
     for po in items_map.values():
         best: OfferOut | None = None
         offers = po.offers
@@ -90,26 +88,16 @@ def execute(
 
         po.best_offer = best
 
-        # 5) active_offer = oferta ativa/comunicada (ProductActiveOffer)
+    # 5) active_offer = oferta ativa/comunicada (ProductActiveOffer)
     pao_repo = ProductActiveOfferReadRepository(db)
     active_map = pao_repo.list_for_products(ids)
 
     for po in items_map.values():
         active: OfferOut | None = None
-        offers = po.offers
         pao = active_map.get(po.id)
 
-        if (
-            po.id_ecommerce  # só faz sentido se estiver ligado ao PrestaShop
-            and po.id_ecommerce > 0
-            and pao
-            and pao.id_supplier is not None
-            and offers
-        ):
-            for o in offers:
-                if o.id_supplier == pao.id_supplier:
-                    active = o
-                    break
+        if po.id_ecommerce and po.id_ecommerce > 0 and pao and pao.id_supplier is not None:
+            active = map_active_offer_from_pao_to_out(pao)
 
         po.active_offer = active
 

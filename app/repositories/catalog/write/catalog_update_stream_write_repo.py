@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime
-from typing import Any
-
 from sqlalchemy.orm import Session
+from typing import Any
 
 from app.models.catalog_update_stream import CatalogUpdateStream
 from app.models.product import Product
 from app.models.product_active_offer import ProductActiveOffer
+
+log = logging.getLogger("gsm.catalog.update_stream")
 
 
 class CatalogUpdateStreamWriteRepository:
@@ -104,14 +106,25 @@ class CatalogUpdateStreamWriteRepository:
         payload_json = json.dumps(payload_dict, ensure_ascii=False)
 
         if existing:
-            # Mantém o evento, mas com o **estado mais recente**
-            # e prioridade "mais urgente" entre o que já lá estava e o novo.
-            existing.priority = max(existing.priority or 0, priority)
+            old_priority = existing.priority or 0
+            new_priority = max(old_priority, priority)
+
+            existing.priority = new_priority
             existing.payload = payload_json
             existing.available_at = now
             # opcional: limpar erro/attempts, porque é um "novo" pedido lógico
             existing.last_error = None
-            # não mexo em attempts; se já falhou, o worker decide o que fazer
+
+            log.info(
+                "catalog_update_stream: dedupe pending event "
+                "id=%s product=%s ecommerce=%s old_priority=%s new_priority=%s reason=%s",
+                existing.id,
+                product.id,
+                product.id_ecommerce,
+                old_priority,
+                new_priority,
+                reason,
+            )
             return existing
 
         # Não havia pending → cria novo
@@ -125,6 +138,16 @@ class CatalogUpdateStreamWriteRepository:
             available_at=now,
         )
         self.db.add(evt)
+
+        log.info(
+            "catalog_update_stream: enqueue new pending event "
+            "product=%s ecommerce=%s priority=%s reason=%s",
+            product.id,
+            product.id_ecommerce,
+            priority,
+            reason,
+        )
+
         return evt
 
     def claim_pending_batch(
@@ -158,6 +181,13 @@ class CatalogUpdateStreamWriteRepository:
             evt.status = "processing"
             evt.attempts += 1
 
+        log.info(
+            "catalog_update_stream: claim_pending_batch " "claimed=%s limit=%s min_priority=%s",
+            len(events),
+            limit,
+            min_priority,
+        )
+
         # commit é responsabilidade do chamador (UoW)
         return events
 
@@ -180,5 +210,44 @@ class CatalogUpdateStreamWriteRepository:
             evt.last_error = error
             evt.processed_at = now
             count += 1
+
+        log.info(
+            "catalog_update_stream: ack_batch status=%s count=%s error=%s",
+            status,
+            count,
+            error,
+        )
+
+        return count
+
+    def mark_batch_processing(self, *, ids: list[int]) -> int:
+        """
+        Marca um conjunto de eventos como `processing`.
+
+        A seleção dos eventos a processar deve ser feita por um repositório
+        de leitura (CatalogUpdateStreamReadRepository). Aqui apenas aplicamos
+        a alteração de estado.
+        """
+        if not ids:
+            return 0
+
+        now = datetime.utcnow()
+
+        q = self.db.query(CatalogUpdateStream).filter(
+            CatalogUpdateStream.id.in_(ids),
+            CatalogUpdateStream.status == "pending",
+        )
+
+        count = 0
+        for evt in q.all():
+            evt.status = "processing"
+            evt.processed_at = now
+            count += 1
+
+        log.info(
+            "catalog_update_stream: mark_batch_processing ids=%s count=%s",
+            ids,
+            count,
+        )
 
         return count

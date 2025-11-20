@@ -1,10 +1,19 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.product_supplier_event import ProductSupplierEvent
 from app.models.supplier_item import SupplierItem
+
+
+@dataclass
+class MarkEolResult:
+    affected_products: list[int]
+    items_total: int  # todos os unseen
+    items_stock_changed: int  # quantos foram >0 -> 0
+    items_already_zero: int  # quantos já estavam a 0
 
 
 class ProductEventWriteRepository:
@@ -46,15 +55,7 @@ class ProductEventWriteRepository:
 
     def mark_eol_for_unseen_items(
         self, *, id_feed: int, id_supplier: int, id_feed_run: int
-    ) -> list[int]:
-        """
-        Marca EOL (End-Of-Life) para itens desse feed que **não foram vistos** neste run.
-
-        - Zera o stock do SupplierItem
-        - Atualiza o id_feed_run para este run (para não repetir EOL)
-        - Cria ProductSupplierEvent(reason="eol")
-        - Devolve lista de id_product afetados
-        """
+    ) -> MarkEolResult:
         unseen_items = self.db.scalars(
             select(SupplierItem).where(
                 SupplierItem.id_feed == id_feed,
@@ -63,13 +64,19 @@ class ProductEventWriteRepository:
         ).all()
 
         affected_products: set[int] = set()
+        items_total = 0
+        items_stock_changed = 0
+        items_already_zero = 0
 
         for it in unseen_items:
-            # Se já estava a 0, podes discutir se vale a pena repetir, mas em geral:
+            items_total += 1
+
             if (it.stock or 0) == 0:
-                # ainda assim atualizamos o run para não repetir para sempre
+                # já estava a zero → apenas avança o run
                 it.id_feed_run = id_feed_run
+                items_already_zero += 1
             else:
+                # transição >0 → 0 → evento EOL
                 it.stock = 0
                 it.id_feed_run = id_feed_run
 
@@ -84,7 +91,13 @@ class ProductEventWriteRepository:
                         reason="eol",
                     )
                 )
+                items_stock_changed += 1
 
             affected_products.add(it.id_product)
 
-        return list(affected_products)
+        return MarkEolResult(
+            affected_products=list(affected_products),
+            items_total=items_total,
+            items_stock_changed=items_stock_changed,
+            items_already_zero=items_already_zero,
+        )

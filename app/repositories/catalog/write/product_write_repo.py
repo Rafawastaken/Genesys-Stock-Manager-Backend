@@ -115,3 +115,17 @@ class ProductWriteRepository:
             return True, False
         else:
             return (False, (row.value or "") != (value or ""))
+
+    def set_margin(self, id_product: int, margin: float) -> None:
+        """
+        Atualiza apenas a margem do produto.
+
+        Validação semântica (ex.: não permitir < 0) deve ser feita no usecase;
+        aqui o repo só aplica a alteração e faz flush.
+        """
+        p = self.db.get(Product, id_product)
+        if not p:
+            return
+        p.margin = margin
+        self.db.add(p)
+        self.db.flush()

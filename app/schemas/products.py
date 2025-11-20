@@ -106,3 +106,17 @@ class ProductDetailOut(BaseModel):
     stats: ProductStatsOut
     events: list[ProductEventOut] | None = None
     series_daily: list[SeriesPointOut] | None = None
+
+
+# --------------------------
+
+
+class ProductMarginUpdate(BaseModel):
+    """
+    Payload para atualização da margem de um produto.
+
+    A margem é um multiplicador usado para calcular o preço de venda
+    a partir do custo: unit_price_sent = unit_cost * (1 + margin).
+    """
+
+    margin: float = Field(..., ge=0.0)

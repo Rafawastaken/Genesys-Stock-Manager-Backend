@@ -1,22 +1,24 @@
 from __future__ import annotations
 
 import logging
+from fastapi import APIRouter, Depends, Query, Path
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query, Path
-
 from app.core.deps import get_uow, require_access_token
-from app.schemas.products import ProductDetailOut, ProductListOut
-from app.domains.catalog.usecases.products.list_products import (
-    execute as uc_q_list_products,
+from app.domains.catalog.usecases.products.get_product_by_gtin import (
+    execute as uc_q_product_detail_by_gtin,
 )
 from app.domains.catalog.usecases.products.get_product_detail import (
     execute as uc_q_product_detail,
 )
-from app.domains.catalog.usecases.products.get_product_by_gtin import (
-    execute as uc_q_product_detail_by_gtin,
+from app.domains.catalog.usecases.products.list_products import (
+    execute as uc_q_list_products,
+)
+from app.domains.catalog.usecases.products.update_margin import (
+    execute as uc_update_product_margin,
 )
 from app.infra.uow import UoW
+from app.schemas.products import ProductDetailOut, ProductListOut, ProductMarginUpdate
 
 router = APIRouter(
     prefix="/products", tags=["products"], dependencies=[Depends(require_access_token)]
@@ -111,6 +113,41 @@ def get_product_detail_by_gtin(
     return uc_q_product_detail_by_gtin(
         uow,
         gtin=gtin.strip(),
+        expand_meta=expand_meta,
+        expand_offers=expand_offers,
+        expand_events=expand_events,
+        events_days=events_days,
+        events_limit=events_limit,
+        aggregate_daily=aggregate_daily,
+    )
+
+
+@router.patch(
+    "/{id_product}/margin",
+    response_model=ProductDetailOut,
+)
+def update_product_margin(
+    id_product: int = Path(..., ge=1),
+    payload: ProductMarginUpdate = ...,
+    uow: UowDep = None,
+    expand_meta: bool = Query(True),
+    expand_offers: bool = Query(True),
+    expand_events: bool = Query(True),
+    events_days: int | None = Query(90, ge=1, le=3650),
+    events_limit: int | None = Query(2000, ge=1, le=100000),
+    aggregate_daily: bool = Query(True),
+) -> ProductDetailOut:
+    """
+    Atualiza a margem de um produto e devolve o detalhe atualizado.
+
+    Mantemos as mesmas flags de expansão do GET /products/{id_product}
+    para poderes reutilizar este endpoint no frontend sem teres de re-fetchar
+    o detalhe numa segunda chamada.
+    """
+    return uc_update_product_margin(
+        uow,
+        id_product=id_product,
+        margin=payload.margin,
         expand_meta=expand_meta,
         expand_offers=expand_offers,
         expand_events=expand_events,

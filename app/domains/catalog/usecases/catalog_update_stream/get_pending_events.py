@@ -4,6 +4,9 @@ from __future__ import annotations
 import json
 
 from app.infra.uow import UoW
+from app.repositories.catalog.read.catalog_update_stream_read_repo import (
+    CatalogUpdateStreamReadRepository,
+)
 from app.repositories.catalog.write.catalog_update_stream_write_repo import (
     CatalogUpdateStreamWriteRepository,
 )
@@ -21,22 +24,29 @@ def execute(
 ) -> list[CatalogUpdateEventOut]:
     """
     Usecase:
-    - vai buscar um batch de eventos `pending`
-    - marca-os como `processing`
+    - lê um batch de eventos `pending` (sem alterar estado) via read repo
+    - marca-os como `processing` via write repo
     - devolve lista de CatalogUpdateEventOut
     """
-    repo = CatalogUpdateStreamWriteRepository(uow.db)
-    events = repo.claim_pending_batch(limit=limit, min_priority=min_priority)
+    read_repo = CatalogUpdateStreamReadRepository(uow.db)
+    write_repo = CatalogUpdateStreamWriteRepository(uow.db)
+
+    events = read_repo.list_pending_for_claim(limit=limit, min_priority=min_priority)
+
+    if not events:
+        # Nada para processar, não precisamos de commit
+        return []
+
+    ids = [evt.id for evt in events]
+    write_repo.mark_batch_processing(ids=ids)
 
     items_out: list[CatalogUpdateEventOut] = []
 
     for evt in events:
-        payload_dict: dict[str, object] = {}
-        if evt.payload:
-            try:
-                payload_dict = json.loads(evt.payload)
-            except Exception:
-                payload_dict = {}
+        try:
+            payload_dict = json.loads(evt.payload or "{}")
+        except Exception:
+            payload_dict = {}
 
         items_out.append(
             CatalogUpdateEventOut(

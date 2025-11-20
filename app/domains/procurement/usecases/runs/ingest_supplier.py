@@ -5,9 +5,8 @@ import io
 import json
 import logging
 from contextlib import suppress
-from typing import Any
-
 from sqlalchemy.exc import IntegrityError
+from typing import Any
 
 from app.core.errors import InvalidArgument, NotFound
 from app.core.normalize import normalize_images, normalize_simple
@@ -18,13 +17,13 @@ from app.domains.catalog.services.sync_events import emit_product_state_event
 from app.domains.mapping.engine import IngestEngine
 from app.external.feed_downloader import http_download, parse_rows_json
 from app.infra.uow import UoW
+from app.repositories.catalog.read.products_read_repo import ProductsReadRepository
 from app.repositories.catalog.write.product_write_repo import ProductWriteRepository
 from app.repositories.procurement.read.feed_run_read_repo import FeedRunReadRepository
 from app.repositories.procurement.read.mapper_read_repo import MapperReadRepository
 from app.repositories.procurement.read.supplier_feed_read_repo import (
     SupplierFeedReadRepository,
 )
-from app.repositories.catalog.read.products_read_repo import ProductsReadRepository
 from app.repositories.procurement.read.supplier_read_repo import SupplierReadRepository
 from app.repositories.procurement.write.feed_run_write_repo import (
     FeedRunWriteRepository,
@@ -315,13 +314,14 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
                 )
 
         # --- 4) EOL dos itens não vistos neste run ---
-        eol_products = ev_w.mark_eol_for_unseen_items(
+        eol_res = ev_w.mark_eol_for_unseen_items(
             id_feed=feed.id,
             id_supplier=id_supplier,
             id_feed_run=id_run,
         )
-        eol_marked = len(eol_products)
-        affected_products.update(eol_products)
+        eol_marked = eol_res.items_stock_changed  # “mudanças reais”
+        eol_unseen = eol_res.items_total  # “desaparecidos do feed”
+        affected_products.update(eol_res.affected_products)
 
         log.info("[run=%s] EOL marked=%s", id_run, eol_marked)
 
@@ -393,6 +393,7 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
             "rows_valid": ok,
             "rows_invalid": bad,
             "changes": changed,
+            "eol_unseen": eol_unseen,
             "eol_marked": eol_marked,
             "status": status,
         }
