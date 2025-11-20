@@ -48,3 +48,28 @@ class CatalogUpdateStreamReadRepository:
         ).limit(limit)
 
         return q.all()
+
+    def list_events(
+        self,
+        *,
+        page: int,
+        page_size: int,
+        status: str | None = None,
+    ) -> tuple[list[CatalogUpdateStream], int]:
+        """
+        Lista eventos da fila com paginacao e filtro opcional por status
+        status pode ser: "pending", "processing", "done", "failed" ou None (todos)
+        """
+        q = self.db.query(CatalogUpdateStream)
+        if status:
+            q = q.filter(CatalogUpdateStream.status == status)
+
+        total = q.count()
+        if total == 0:
+            return [], total
+
+        q = q.order_by(CatalogUpdateStream.created_at.desc())
+
+        rows = q.offset((page - 1) * page_size).limit(page_size).all()
+
+        return rows, total

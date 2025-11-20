@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class CatalogUpdatePayload(BaseModel):
@@ -36,3 +36,30 @@ class CatalogUpdateAckIn(BaseModel):
     ids: list[int] = Field(..., min_length=1)
     status: Literal["done", "failed"]
     error: str | None = None
+
+
+# ----------------------------------------------------
+
+
+class CatalogUpdateStreamItemOut(BaseModel):
+    id: int
+    id_product: int
+    id_ecommerce: int | None = None
+
+    status: str
+    event_type: str
+    priority: int
+    attempts: int
+    last_error: str | None = None
+
+    created_at: datetime
+    processed_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CatalogUpdateStreamListOut(BaseModel):
+    items: list[CatalogUpdateStreamItemOut]
+    total: int
+    page: int
+    page_size: int

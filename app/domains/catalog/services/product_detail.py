@@ -61,7 +61,6 @@ def get_product_detail(uow: UoW, *, id_product: int, opts: DetailOptions) -> Pro
             ProductMetaOut(
                 name=m.name,
                 value=m.value,
-                source=m.source,
                 created_at=m.created_at,
             )
             for m in meta_rows
