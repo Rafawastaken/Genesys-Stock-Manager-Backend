@@ -13,7 +13,7 @@ from app.domains.catalog.services.active_offer import (
 )
 from app.domains.catalog.services.sync_events import emit_product_state_event
 from app.domains.mapping.engine import IngestEngine
-from app.external.feed_downloader import http_download, parse_rows_json, parse_rows_csv
+from app.external.feed_downloader import FeedDownloader, parse_rows_json, parse_rows_csv
 from app.infra.uow import UoW
 from app.repositories.catalog.read.products_read_repo import ProductsReadRepository
 from app.repositories.catalog.write.product_write_repo import ProductWriteRepository
@@ -68,11 +68,7 @@ def _split_payload(mapped: dict[str, Any]) -> tuple[dict[str, Any], dict[str, An
 
     # Preço: normalizar para decimal string “limpa” (39,99 € → "39.99")
     raw_price = mapped.get("price")
-    price_str = ""
-    if raw_price is not None:
-        normalized = to_decimal_str(raw_price)
-        if normalized is not None:
-            price_str = normalized.strip()
+    price_str = to_decimal_str(raw_price) or "" if raw_price is not None else ""
 
     # Stock: aguentar porcarias tipo "10+", " 5 ", "N/A" → 10, 5, 0
     raw_stock = mapped.get("stock")
@@ -148,13 +144,21 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
 
     try:
         # --- 2) Download + parse feed ---
-        headers = json.loads(feed.headers_json) if feed.headers_json else None
-        params = json.loads(feed.params_json) if feed.params_json else None
+        headers = json.loads(feed.headers_json) if getattr(feed, "headers_json", None) else None
+        params = json.loads(feed.params_json) if getattr(feed, "params_json", None) else None
+        auth = json.loads(feed.auth_json) if getattr(feed, "auth_json", None) else None
+        extra = json.loads(feed.extra_json) if getattr(feed, "extra_json", None) else None
 
-        status_code, content_type, raw = await http_download(
-            feed.url,
+        downloader = FeedDownloader()
+
+        status_code, content_type, raw, err_text = await downloader.download_feed(
+            kind=getattr(feed, "kind", None),
+            url=feed.url,
             headers=headers,
             params=params,
+            auth_kind=getattr(feed, "auth_kind", None),
+            auth=auth,
+            extra=extra,
             timeout_s=60,
         )
 
@@ -162,17 +166,26 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
             run_w.finalize_http_error(
                 id_run,
                 http_status=status_code,
-                error_msg=f"HTTP {status_code}",
+                error_msg=err_text or f"HTTP {status_code}",
             )
             uow.commit()
-            log.error("[run=%s] download error: HTTP %s", id_run, status_code)
+            log.error(
+                "[run=%s] download error: HTTP %s msg=%s",
+                id_run,
+                status_code,
+                err_text,
+            )
             return {"ok": False, "id_run": id_run, "error": f"HTTP {status_code}"}
 
         fmt = (feed.format or "").lower()
         if fmt == "json":
             rows: list[dict[str, Any]] = parse_rows_json(raw)
         else:
-            rows = parse_rows_csv(raw, delimiter=(feed.csv_delimiter or ","))
+            rows = parse_rows_csv(
+                raw,
+                delimiter=(feed.csv_delimiter or ","),
+                max_rows=None,
+            )
 
         total = len(rows)
         if limit is not None:

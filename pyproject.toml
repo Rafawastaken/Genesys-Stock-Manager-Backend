@@ -21,6 +21,9 @@ ignore = [
     "B008", # mccabe: Remover este check
     "SIM102",
     "SIM105",
+    "SIM108",
+    "B023",
+    "UP038",
 ]
 
 [tool.ruff.lint.isort]
