@@ -230,6 +230,7 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
                             gtin=None,
                             partnumber=pn,
                             brand_name=brand_name,
+                            default_margin=supplier_margin,
                         )
                     except Exception:
                         p = None
