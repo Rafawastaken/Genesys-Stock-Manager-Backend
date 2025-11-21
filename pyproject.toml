@@ -20,6 +20,7 @@ ignore = [
     "E501", # mccabe: Line too long
     "B008", # mccabe: Remover este check
     "SIM102",
+    "SIM105",
 ]
 
 [tool.ruff.lint.isort]

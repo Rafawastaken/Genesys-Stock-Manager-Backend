@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import csv
-import io
 import json
 import logging
 from contextlib import suppress
@@ -9,13 +7,13 @@ from sqlalchemy.exc import IntegrityError
 from typing import Any
 
 from app.core.errors import InvalidArgument, NotFound
-from app.core.normalize import normalize_images, normalize_simple
+from app.core.normalize import normalize_images, normalize_simple, to_int, to_decimal_str
 from app.domains.catalog.services.active_offer import (
     recalculate_active_offer_for_product,
 )
 from app.domains.catalog.services.sync_events import emit_product_state_event
 from app.domains.mapping.engine import IngestEngine
-from app.external.feed_downloader import http_download, parse_rows_json
+from app.external.feed_downloader import http_download, parse_rows_json, parse_rows_csv
 from app.infra.uow import UoW
 from app.repositories.catalog.read.products_read_repo import ProductsReadRepository
 from app.repositories.catalog.write.product_write_repo import ProductWriteRepository
@@ -52,15 +50,6 @@ CANON_PRODUCT_KEYS = {
 CANON_OFFER_KEYS = {"price", "stock", "sku"}
 
 
-def _decode_csv(raw: bytes, delimiter: str = ",") -> list[dict[str, Any]]:
-    """
-    Converte um CSV em lista de dicts normalizados (str→str).
-    """
-    text = raw.decode("utf-8", errors="ignore")
-    reader = csv.DictReader(io.StringIO(text), delimiter=(delimiter or ","))
-    return [{k: (v if v is not None else "") for k, v in row.items()} for row in reader]
-
-
 def _split_payload(mapped: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     """
     Separa o resultado do mapper em:
@@ -77,9 +66,23 @@ def _split_payload(mapped: dict[str, Any]) -> tuple[dict[str, Any], dict[str, An
         "weight_str": mapped.get("weight"),
     }
 
+    # Preço: normalizar para decimal string “limpa” (39,99 € → "39.99")
+    raw_price = mapped.get("price")
+    price_str = ""
+    if raw_price is not None:
+        normalized = to_decimal_str(raw_price)
+        if normalized is not None:
+            price_str = normalized.strip()
+
+    # Stock: aguentar porcarias tipo "10+", " 5 ", "N/A" → 10, 5, 0
+    raw_stock = mapped.get("stock")
+    stock_int = to_int(raw_stock)
+    if stock_int is None:
+        stock_int = 0
+
     out_offer = {
-        "price": (mapped.get("price") or "").strip(),
-        "stock": int(mapped.get("stock") or 0),
+        "price": price_str,
+        "stock": stock_int,
         "sku": (mapped.get("sku") or mapped.get("partnumber") or mapped.get("gtin") or "").strip(),
         "gtin": out_product["gtin"],
         "partnumber": out_product["partnumber"],
@@ -169,7 +172,7 @@ async def execute(uow: UoW, *, id_supplier: int, limit: int | None = None) -> di
         if fmt == "json":
             rows: list[dict[str, Any]] = parse_rows_json(raw)
         else:
-            rows = _decode_csv(raw, delimiter=(feed.csv_delimiter or ","))
+            rows = parse_rows_csv(raw, delimiter=(feed.csv_delimiter or ","))
 
         total = len(rows)
         if limit is not None:
